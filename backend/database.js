@@ -110,6 +110,12 @@ db.serialize(() => {
     status TEXT DEFAULT 'pendente',
     arquivo_path TEXT,
     tipo_arquivo TEXT,
+    boleto_path TEXT,
+    nota_path TEXT,
+    conta_financeira TEXT,
+    turno TEXT,
+    pdv TEXT,
+    observacao TEXT,
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (cliente_id) REFERENCES clientes(id),
     FOREIGN KEY (empresa_id) REFERENCES empresa(id)
@@ -121,6 +127,12 @@ db.serialize(() => {
       db.all(`PRAGMA table_info(faturas)`, (err, columns) => {
         if (!err && columns) {
           const hasEmpresaId = columns.some(col => col.name === 'empresa_id');
+          const hasBoleto = columns.some(col => col.name === 'boleto_path');
+          const hasNota = columns.some(col => col.name === 'nota_path');
+          const hasConta = columns.some(col => col.name === 'conta_financeira');
+          const hasTurno = columns.some(col => col.name === 'turno');
+          const hasPdv = columns.some(col => col.name === 'pdv');
+          const hasObs = columns.some(col => col.name === 'observacao');
           if (!hasEmpresaId) {
             db.run(`ALTER TABLE faturas ADD COLUMN empresa_id INTEGER REFERENCES empresa(id)`, (err) => {
               if (!err) {
@@ -128,6 +140,24 @@ db.serialize(() => {
               }
             });
           }
+          if (!hasBoleto) {
+            db.run(`ALTER TABLE faturas ADD COLUMN boleto_path TEXT`, (err) => {
+              if (!err) {
+                console.log('Coluna boleto_path adicionada à tabela faturas com sucesso');
+              }
+            });
+          }
+          if (!hasNota) {
+            db.run(`ALTER TABLE faturas ADD COLUMN nota_path TEXT`, (err) => {
+              if (!err) {
+                console.log('Coluna nota_path adicionada à tabela faturas com sucesso');
+              }
+            });
+          }
+          if (!hasConta) db.run(`ALTER TABLE faturas ADD COLUMN conta_financeira TEXT`);
+          if (!hasTurno) db.run(`ALTER TABLE faturas ADD COLUMN turno TEXT`);
+          if (!hasPdv) db.run(`ALTER TABLE faturas ADD COLUMN pdv TEXT`);
+          if (!hasObs) db.run(`ALTER TABLE faturas ADD COLUMN observacao TEXT`);
         }
       });
     }

@@ -12,8 +12,11 @@ const isAdmin = (req, res, next) => {
   next();
 };
 
+// Todas as rotas abaixo exigem usuário autenticado
+router.use(auth);
+
 // Listar usuários (apenas admin)
-router.get('/', auth, isAdmin, (req, res) => {
+router.get('/', isAdmin, (req, res) => {
   db.all('SELECT id, nome, usuario, email, is_admin FROM usuarios ORDER BY nome', [], (err, usuarios) => {
     if (err) {
       return res.status(500).json({ erro: 'Erro ao buscar usuários' });
@@ -22,53 +25,89 @@ router.get('/', auth, isAdmin, (req, res) => {
   });
 });
 
-// Atualizar usuário (apenas admin)
-router.put('/:id', auth, isAdmin, async (req, res) => {
+// Atualizar usuário
+router.put('/:id', async (req, res) => {
   const { id } = req.params;
-  const { nome, usuario, email, senha, is_admin } = req.body;
+  const { nome, usuario, email, senhaAtual, senhaNova, senha, is_admin } = req.body;
 
-  // Validar campos obrigatórios
-  if (!nome || !usuario) {
-    return res.status(400).json({ erro: 'Nome e usuário são obrigatórios' });
-  }
-
-  try {
-    // Se a senha foi fornecida, fazer hash
-    let updateQuery;
-    let params;
-    
-    if (senha) {
-      const senhaHash = await bcrypt.hash(senha, 10);
-      updateQuery = 'UPDATE usuarios SET nome = ?, usuario = ?, email = ?, senha = ?, is_admin = ? WHERE id = ?';
-      params = [nome, usuario, email || null, senhaHash, is_admin || 0, id];
-    } else {
-      updateQuery = 'UPDATE usuarios SET nome = ?, usuario = ?, email = ?, is_admin = ? WHERE id = ?';
-      params = [nome, usuario, email || null, is_admin || 0, id];
+  // Buscar usuário alvo
+  db.get('SELECT * FROM usuarios WHERE id = ?', [id], async (err, usuarioDb) => {
+    if (err) {
+      return res.status(500).json({ erro: 'Erro ao buscar usuário' });
     }
-    
-    db.run(updateQuery, params, function(err) {
-      if (err) {
-        console.error('[Usuarios] Erro ao atualizar:', err);
-        if (err.message.includes('UNIQUE constraint failed')) {
-          return res.status(400).json({ erro: 'Este nome de usuário já está em uso' });
+    if (!usuarioDb) {
+      return res.status(404).json({ erro: 'Usuário não encontrado' });
+    }
+
+    // Se não é admin, só pode alterar a própria senha
+    if (!req.usuario.is_admin) {
+      if (parseInt(id) !== req.usuario.id) {
+        return res.status(403).json({ erro: 'Acesso negado' });
+      }
+
+      if (!senhaAtual || !senhaNova) {
+        return res.status(400).json({ erro: 'Informe a senha atual e a nova senha' });
+      }
+
+      const senhaValida = await bcrypt.compare(senhaAtual, usuarioDb.senha);
+      if (!senhaValida) {
+        return res.status(401).json({ erro: 'Senha atual incorreta' });
+      }
+
+      const senhaHash = await bcrypt.hash(senhaNova, 10);
+      db.run('UPDATE usuarios SET senha = ? WHERE id = ?', [senhaHash, id], function(updateErr) {
+        if (updateErr) {
+          console.error('[Usuarios] Erro ao atualizar senha:', updateErr);
+          return res.status(500).json({ erro: 'Erro ao atualizar senha' });
         }
-        return res.status(400).json({ erro: 'Erro ao atualizar usuário: ' + err.message });
+        return res.json({ mensagem: 'Senha atualizada com sucesso' });
+      });
+      return;
+    }
+
+    // Fluxo de admin: pode alterar dados e opcionalmente a senha
+    if (!nome || !usuario) {
+      return res.status(400).json({ erro: 'Nome e usuário são obrigatórios' });
+    }
+
+    try {
+      let updateQuery;
+      let params;
+      const novaSenha = senhaNova || senha; // manter compatibilidade com payload antigo
+
+      if (novaSenha) {
+        const senhaHash = await bcrypt.hash(novaSenha, 10);
+        updateQuery = 'UPDATE usuarios SET nome = ?, usuario = ?, email = ?, senha = ?, is_admin = ? WHERE id = ?';
+        params = [nome, usuario, email || null, senhaHash, is_admin || 0, id];
+      } else {
+        updateQuery = 'UPDATE usuarios SET nome = ?, usuario = ?, email = ?, is_admin = ? WHERE id = ?';
+        params = [nome, usuario, email || null, is_admin || 0, id];
       }
       
-      if (this.changes === 0) {
-        return res.status(404).json({ erro: 'Usuário não encontrado' });
-      }
-      
-      res.json({ mensagem: 'Usuário atualizado com sucesso' });
-    });
-  } catch (error) {
-    console.error('[Usuarios] Erro ao atualizar:', error);
-    res.status(500).json({ erro: 'Erro ao atualizar usuário' });
-  }
+      db.run(updateQuery, params, function(updateErr) {
+        if (updateErr) {
+          console.error('[Usuarios] Erro ao atualizar:', updateErr);
+          if (updateErr.message.includes('UNIQUE constraint failed')) {
+            return res.status(400).json({ erro: 'Este nome de usuário já está em uso' });
+          }
+          return res.status(400).json({ erro: 'Erro ao atualizar usuário: ' + updateErr.message });
+        }
+        
+        if (this.changes === 0) {
+          return res.status(404).json({ erro: 'Usuário não encontrado' });
+        }
+        
+        res.json({ mensagem: 'Usuário atualizado com sucesso' });
+      });
+    } catch (error) {
+      console.error('[Usuarios] Erro ao atualizar:', error);
+      res.status(500).json({ erro: 'Erro ao atualizar usuário' });
+    }
+  });
 });
 
 // Deletar usuário (apenas admin, não pode deletar admin)
-router.delete('/:id', auth, isAdmin, (req, res) => {
+router.delete('/:id', isAdmin, (req, res) => {
   const { id } = req.params;
   
   // Verificar se o usuário a ser deletado é admin

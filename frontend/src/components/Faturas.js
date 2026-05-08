@@ -122,6 +122,7 @@ function Faturas() {
               <option value="pendente">Pendente</option>
               <option value="pago">Pago</option>
               <option value="vencido">Vencido</option>
+              <option value="nova gestão">Nova Gestão</option>
             </select>
           </div>
           <button type="submit" className="btn btn-primary">Criar Fatura</button>

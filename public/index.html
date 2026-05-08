@@ -10,7 +10,7 @@
   <link rel="shortcut icon" type="image/png" href="images/favicon.png">
   <link rel="apple-touch-icon" href="images/favicon.png">
   
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=20260508b">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -79,7 +79,7 @@
             ☰
           </button>
           <div class="nav-links" id="nav-links">
-            <span id="usuario-logado-mobile" class="user-name hidden">👤 Carregando...</span>
+            <span id="usuario-logado-mobile" class="user-name hidden" style="cursor: pointer;" onclick="openPerfilModal(); closeMenu();">👤 Carregando...</span>
             <a href="#" onclick="router.navigate('dashboard'); closeMenu(); return false;">Dashboard</a>
             <a href="#" onclick="openEmpresaModal(); closeMenu(); return false;">Empresa</a>
             <a href="#" onclick="openClientesModal(); closeMenu(); return false;">Clientes</a>
@@ -89,7 +89,7 @@
             <button class="btn btn-logout btn-logout-mobile btn-danger" onclick="Auth.logout()">Sair</button>
           </div>
           <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;" class="user-info-desktop">
-            <span id="usuario-logado" style="font-size: 14px; color: var(--text-light);">👤 Carregando...</span>
+            <span id="usuario-logado" style="font-size: 14px; color: var(--text-light); cursor: pointer;" onclick="openPerfilModal()">👤 Carregando...</span>
             <button class="btn btn-logout btn-danger" onclick="Auth.logout()">Sair</button>
           </div>
         </div>
@@ -401,6 +401,7 @@
                     <option value="pendente">Pendente</option>
                     <option value="pago">Pago</option>
                     <option value="vencido">Vencido</option>
+                    <option value="nova gestão">Nova Gestão</option>
                   </select>
                 </div>
               </div>
@@ -436,6 +437,7 @@
                   <option value="pendente">Pendente</option>
                   <option value="pago">Pago</option>
                   <option value="vencido">Vencido</option>
+                  <option value="nova gestão">Nova Gestão</option>
                 </select>
               </div>
             </div>
@@ -457,7 +459,7 @@
                     <th>Data Vencimento</th>
                     <th>Valor</th>
                     <th>Status</th>
-                    <th style="width: 150px;">Ações</th>
+                    <th style="width: 260px;">Ações</th>
                   </tr>
                 </thead>
                 <tbody></tbody>
@@ -536,6 +538,95 @@
               <div class="btn-group">
                 <button type="submit" class="btn btn-primary">📤 Fazer Upload</button>
                 <button type="button" class="btn btn-secondary" onclick="router.navigate('faturas-listar')">📋 Ver Lista</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Seção Haver -->
+        <div id="haver-section" class="section hidden">
+          <div class="section-header">
+            <h1>📑 Haver</h1>
+            <div class="btn-group">
+              <button class="btn btn-primary" onclick="Faturas.openHaverModal()">➕ Inserir Haver</button>
+            </div>
+          </div>
+          <div class="card card-full-width">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap:12px; flex-wrap: wrap;">
+              <h3>Haver cadastrados <span id="haver-count" style="color: var(--text-light); font-size: 14px;"></span></h3>
+              <div style="min-width: 240px; flex: 1; max-width: 320px;">
+                <div class="form-group" style="margin-bottom:0;">
+                  <label style="font-size:13px;">Buscar cliente ou número</label>
+                  <input type="text" id="haver-search" placeholder="Digite para filtrar" style="height:38px;">
+                </div>
+              </div>
+            </div>
+            <div class="table-wrapper">
+              <table id="haver-table">
+                <thead>
+                  <tr>
+                    <th>Cliente</th>
+                    <th>Número</th>
+                    <th>Vencimento</th>
+                    <th>Valor</th>
+                    <th style="width:140px;">Ações</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal Inserir Haver -->
+        <div id="haver-modal" class="modal">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h2>Inserir Haver</h2>
+              <button class="close" onclick="Faturas.closeHaverModal()">&times;</button>
+            </div>
+            <form id="haver-form">
+              <div class="form-row" style="grid-template-columns: 1.4fr 0.8fr;">
+                <div class="form-group">
+                  <label>Empresa *</label>
+                  <select id="haver-empresa" required></select>
+                </div>
+                <div class="form-group">
+                  <label>Data *</label>
+                  <input type="date" id="haver-data" required>
+                </div>
+              </div>
+              <div class="form-row" style="grid-template-columns: 2fr 0.8fr 1.6fr 0.8fr 0.8fr;">
+                <div class="form-group" style="position: relative;">
+                  <label>Cliente *</label>
+                  <input type="hidden" id="haver-cliente">
+                  <input type="text" id="haver-cliente-busca" placeholder="Digite para buscar" autocomplete="off" required>
+                  <div id="haver-cliente-sugestoes" class="autocomplete-list hidden"></div>
+                </div>
+                <div class="form-group">
+                  <label>Valor *</label>
+                  <input type="number" id="haver-valor" step="0.01" min="0.01" required placeholder="0,00">
+                </div>
+                <div class="form-group">
+                  <label>Conta financeira</label>
+                  <input type="text" id="haver-conta" placeholder="Ex.: Banco Principal">
+                </div>
+                <div class="form-group">
+                  <label>Turno</label>
+                  <input type="text" id="haver-turno" placeholder="Manhã">
+                </div>
+                <div class="form-group">
+                  <label>PDV</label>
+                  <input type="text" id="haver-pdv" placeholder="Ex.: 01">
+                </div>
+              </div>
+              <div class="form-group" style="margin-top:8px;">
+                <label>Observação</label>
+                <textarea id="haver-observacao" rows="2" placeholder="Notas internas"></textarea>
+              </div>
+              <div class="btn-group" style="justify-content: flex-end; gap: 12px;">
+                <button type="button" class="btn btn-secondary" onclick="Faturas.closeHaverModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Salvar Haver</button>
               </div>
             </form>
           </div>
@@ -751,11 +842,11 @@
             </a>
           </li>
           <li class="modal-menu-item">
-            <a href="#" onclick="router.navigate('faturas-upload'); closeFaturasModal(); return false;">
-              <div class="modal-menu-icon">📤</div>
+            <a href="#" onclick="router.navigate('haver-listar'); closeFaturasModal(); return false;">
+              <div class="modal-menu-icon">📑</div>
               <div class="modal-menu-text">
-                <h4>Upload de Faturas</h4>
-                <p>Enviar arquivos PDF ou CSV</p>
+                <h4>Listar Haver</h4>
+                <p>Ver lançamentos de haver</p>
               </div>
             </a>
           </li>
@@ -803,6 +894,7 @@
               <option value="pendente">Pendente</option>
               <option value="pago">Pago</option>
               <option value="vencido">Vencido</option>
+              <option value="nova gestão">Nova Gestão</option>
             </select>
           </div>
 
@@ -815,125 +907,258 @@
     </div>
   </div>
 
-  <!-- Modal Pagamento -->
+  <!-- Modal Quitar Fatura -->
   <div id="pagamento-modal" class="modal">
-    <div class="modal-content">
+    <div class="modal-content" style="max-width: 600px;">
       <div class="modal-header">
-        <h3>💰 Registrar Pagamento</h3>
+        <h3>Quitar fatura</h3>
         <button class="modal-close" onclick="Faturas.closePagamentoModal()">&times;</button>
       </div>
       <div class="modal-body">
-        <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 16px;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-            <span><strong>Cliente:</strong></span>
-            <span id="pag-cliente-nome"></span>
-          </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-            <span><strong>Fatura:</strong></span>
-            <span id="pag-numero-fatura"></span>
-          </div>
-          <div style="display: flex; justify-content: space-between;">
-            <span><strong>Valor Total:</strong></span>
-            <span id="pag-valor-total" style="color: var(--primary); font-weight: bold;"></span>
-          </div>
-        </div>
-
         <form id="form-pagamento" onsubmit="Faturas.submitPagamento(event)">
           <input type="hidden" id="pag-fatura-id">
           <input type="hidden" id="pag-valor-original">
+          <input type="hidden" id="pag-cliente-nome">
+          <input type="hidden" id="pag-numero-fatura">
 
-          <div class="form-group">
-            <label>Tipo de Pagamento *</label>
-            <select id="pag-tipo" required onchange="Faturas.handleTipoPagamento()">
-              <option value="">Selecione...</option>
-              <option value="total">Pagamento Total</option>
-              <option value="parcial">Pagamento Parcial</option>
-              <option value="vale">Gerar Vale</option>
-              <option value="haver">Gerar Haver (Crédito)</option>
-            </select>
-          </div>
-
-          <div id="pag-campos-parcial" style="display: none;">
-            <div class="form-group">
-              <label>Valor Pago (R$) *</label>
-              <input type="number" id="pag-valor-pago" step="0.01" min="0" onchange="Faturas.calcularDesconto()">
-            </div>
-
-            <div class="form-group">
-              <label>Desconto (R$)</label>
-              <input type="number" id="pag-desconto" step="0.01" min="0" value="0" onchange="Faturas.calcularValorPago()">
-            </div>
-
-            <div style="background: #fff3cd; padding: 12px; border-radius: 8px; margin-top: 12px;">
-              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                <span>Valor Original:</span>
-                <span id="pag-resumo-original"></span>
-              </div>
-              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                <span>Desconto:</span>
-                <span id="pag-resumo-desconto" style="color: #d32f2f;"></span>
-              </div>
-              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                <span>Valor Pago:</span>
-                <span id="pag-resumo-pago" style="color: #388e3c;"></span>
-              </div>
-              <div style="display: flex; justify-content: space-between; border-top: 1px solid #ddd; padding-top: 8px; margin-top: 8px;">
-                <strong>Saldo Restante:</strong>
-                <strong id="pag-resumo-restante" style="color: var(--primary);"></strong>
-              </div>
+          <!-- Forma de pagamento -->
+          <div style="background: #f5f5f5; padding: 16px; border-radius: 8px; margin-bottom: 20px;">
+            <h4 style="margin: 0 0 12px 0; font-size: 14px; color: #666;">Forma de pagamento da quitação</h4>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <label style="display: flex; align-items: center; gap: 8px;">
+                <input type="radio" name="forma-pagamento" value="conta" checked disabled>
+                <span>Conta financeira (banco/cofre)</span>
+              </label>
             </div>
           </div>
 
-          <div id="pag-campos-vale" style="display: none;">
-            <div class="form-group">
-              <label>Valor do Vale (R$) *</label>
-              <input type="number" id="pag-valor-vale" step="0.01" min="0">
+          <!-- Pagamento através de conta financeira -->
+          <div style="background: #f5f5f5; padding: 16px; border-radius: 8px; margin-bottom: 20px;">
+            <h4 style="margin: 0 0 12px 0; font-size: 14px; color: #666;">Pagamento através de conta financeira</h4>
+            <div class="form-group" style="margin-bottom: 12px;">
+              <label style="font-size: 13px;">Conta financeira</label>
+              <select id="pag-conta-financeira" style="width: 100%;">
+                <option value="">Selecione uma conta</option>
+                <option value="banco-principal">Banco Principal</option>
+                <option value="cofre">Cofre</option>
+              </select>
             </div>
-            <div class="form-group">
-              <label>Observação</label>
-              <textarea id="pag-obs-vale" rows="2" placeholder="Ex: Vale combustível"></textarea>
-            </div>
-          </div>
-
-          <div id="pag-campos-haver" style="display: none;">
-            <div class="form-group">
-              <label>Valor do Haver (R$) *</label>
-              <input type="number" id="pag-valor-haver" step="0.01" min="0">
-            </div>
-            <div class="form-group">
-              <label>Observação</label>
-              <textarea id="pag-obs-haver" rows="2" placeholder="Ex: Crédito para próxima compra"></textarea>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label style="font-size: 13px;">Data de pagamento</label>
+              <input type="date" id="pag-data" required style="width: 200px;">
             </div>
           </div>
 
-          <div class="form-group">
-            <label>Data do Pagamento *</label>
-            <input type="date" id="pag-data" required>
+          <!-- Resumo de valores -->
+          <div style="margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e0e0e0;">
+              <span style="font-size: 14px;">Valor a pagar</span>
+              <span id="pag-valor-pagar" style="font-size: 14px; font-weight: 500;">R$ 0,00</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e0e0e0;">
+              <span style="font-size: 14px;">Valor em haver</span>
+              <input type="number" id="pag-valor-haver" step="0.01" min="0" value="0" readonly
+                     style="width: 150px; text-align: right; padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px; background-color: #f5f5f5; cursor: not-allowed;">
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e0e0e0;">
+              <span style="font-size: 14px;">Valor pago</span>
+              <input type="number" id="pag-valor-pago" step="0.01" min="0" value="0" 
+                     onchange="Faturas.calcularResumo()" 
+                     style="width: 150px; text-align: right; padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px;">
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 8px 0;">
+              <span style="font-size: 14px; font-weight: bold;">Diferença</span>
+              <span id="pag-diferenca" style="font-size: 14px; font-weight: bold;">0,00</span>
+            </div>
           </div>
 
-          <div class="form-group">
-            <label>Observações</label>
-            <textarea id="pag-observacoes" rows="3" placeholder="Observações sobre o pagamento..."></textarea>
+          <input type="hidden" id="pag-acao" value="normal">
+          <!-- Botões: modo normal -->
+          <div id="pag-botoes-normal" style="display: flex; gap: 12px; justify-content: center; margin-bottom:10px;">
+            <button type="submit" class="btn btn-success" style="min-width: 140px;">
+              ✓ Confirmar
+            </button>
+            <button type="button" class="btn btn-danger" onclick="Faturas.closePagamentoModal()" style="min-width: 140px;">
+              ✕ Cancelar
+            </button>
           </div>
 
-          <div class="form-actions">
-            <button type="button" class="btn btn-secondary" onclick="Faturas.closePagamentoModal()">Cancelar</button>
-            <button type="submit" class="btn btn-primary">Confirmar Pagamento</button>
+          <!-- Botões: valor pago menor (vale/desconto) -->
+          <div id="pag-botoes-diferenca" style="display:none; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom:10px;">
+            <button type="button" class="btn btn-secondary" style="min-width: 140px;" onclick="Faturas.setAcaoPagamento('vale', true)">
+              ✓ Gerar Vale
+            </button>
+            <button type="button" class="btn btn-warning" style="min-width: 140px;" onclick="Faturas.setAcaoPagamento('desconto', true)">
+              ✓ Desconto
+            </button>
+            <button type="button" class="btn btn-danger" onclick="Faturas.closePagamentoModal()" style="min-width: 140px;">
+              ✕ Cancelar
+            </button>
+          </div>
+
+          <!-- Botões: valor pago maior (haver/juros) -->
+          <div id="pag-botoes-haver" style="display:none; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom:10px;">
+            <button type="button" class="btn btn-secondary" style="min-width: 140px;" onclick="Faturas.setAcaoPagamento('haver', true)">
+              ✓ Gerar Haver
+            </button>
+            <button type="button" class="btn btn-warning" style="min-width: 140px;" onclick="Faturas.setAcaoPagamento('juros', true)">
+              ✓ Juros
+            </button>
+            <button type="button" class="btn btn-danger" onclick="Faturas.closePagamentoModal()" style="min-width: 140px;">
+              ✕ Cancelar
+            </button>
           </div>
         </form>
       </div>
     </div>
   </div>
 
-  <script src="js/utils.js"></script>
+  <!-- Modal Anexos de Fatura (admin) -->
+  <div id="anexos-fatura-modal" class="modal">
+    <div class="modal-content" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3>📎 Anexar boleto / nota fiscal</h3>
+        <button class="modal-close" onclick="Faturas.closeAnexos()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="anexos-form">
+          <input type="hidden" id="anexo-fatura-id">
+          <p style="margin-top:0; color:#666;">Fatura <strong id="anexo-numero"></strong> | Cliente <strong id="anexo-cliente"></strong></p>
+
+          <div style="display:flex; gap:8px; margin-bottom: 12px; flex-wrap: wrap;">
+            <button type="button" class="btn btn-secondary" id="anexo-download-boleto">Baixar boleto</button>
+            <button type="button" class="btn btn-secondary" id="anexo-download-nf">Baixar nota fiscal</button>
+          </div>
+
+          <div class="form-group">
+            <label>Boleto (PDF)</label>
+            <input type="file" id="anexo-boleto" accept=".pdf">
+          </div>
+
+          <div class="form-group">
+            <label>Nota Fiscal (PDF)</label>
+            <input type="file" id="anexo-nota" accept=".pdf">
+          </div>
+
+          <p style="font-size: 12px; color: #777;">Envie pelo menos um arquivo. Novos uploads substituem o arquivo anterior da fatura.</p>
+
+          <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 16px;">
+            <button type="button" class="btn btn-secondary" onclick="Faturas.closeAnexos()">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Salvar anexos</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Alterar Status Rápido -->
+  <div id="status-modal" class="modal">
+    <div class="modal-content" style="max-width: 360px;">
+      <div class="modal-header">
+        <h3>🏷️ Alterar status</h3>
+        <button class="modal-close" onclick="Faturas.closeStatusModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="status-form" onsubmit="Faturas.submitStatus(event)">
+          <input type="hidden" id="status-fatura-id">
+          <div class="form-group">
+            <label>Novo status</label>
+            <select id="status-select">
+              <option value="pendente">Pendente</option>
+              <option value="pago">Pago</option>
+              <option value="vencido">Vencido</option>
+              <option value="nova gestão">Nova Gestão</option>
+              <option value="advogado">Advogado</option>
+              <option value="protestado">Protestado</option>
+              <option value="descontado">Descontado</option>
+            </select>
+          </div>
+          <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:12px;">
+            <button type="button" class="btn btn-secondary" onclick="Faturas.closeStatusModal()">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Salvar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Perfil do Usuário -->
+  <div id="perfil-modal" class="modal">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3>👤 Meu Perfil</h3>
+        <button class="modal-close" onclick="closePerfilModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-perfil" onsubmit="submitPerfil(event)">
+          <input type="hidden" id="perfil-usuario-id">
+          
+          <div class="form-group">
+            <label>Nome Completo *</label>
+            <input type="text" id="perfil-nome" required>
+          </div>
+          
+          <div class="form-group">
+            <label>Usuário *</label>
+            <input type="text" id="perfil-usuario" required>
+          </div>
+          
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="perfil-email">
+          </div>
+          
+          <hr style="margin: 24px 0; border: none; border-top: 1px solid #e0e0e0;">
+          
+          <h4 style="margin-bottom: 16px; font-size: 16px;">Alterar Senha</h4>
+          <p id="perfil-restricao" style="margin-top:-4px; margin-bottom:16px; color:#7a7a7a; font-size:13px;"></p>
+          
+          <div class="form-group">
+            <label>Senha Atual</label>
+            <input type="password" id="perfil-senha-atual" placeholder="Deixe em branco para não alterar">
+          </div>
+          
+          <div class="form-group">
+            <label>Nova Senha</label>
+            <input type="password" id="perfil-senha-nova" placeholder="Deixe em branco para não alterar">
+          </div>
+          
+          <div class="form-group">
+            <label>Confirmar Nova Senha</label>
+            <input type="password" id="perfil-senha-confirmar" placeholder="Deixe em branco para não alterar">
+          </div>
+          
+          <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
+            <button type="button" class="btn btn-secondary" onclick="closePerfilModal()">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="trial-expired-modal" class="modal trial-block-modal" role="dialog" aria-modal="true" aria-labelledby="trial-expired-title">
+    <div class="modal-content trial-block-modal-content">
+      <div class="modal-header">
+        <h3 id="trial-expired-title">Período de teste expirado</h3>
+      </div>
+      <div class="modal-body">
+        <p class="trial-block-message">O período de teste deste sistema expirou.</p>
+        <p class="trial-block-message">Entre em contato com o administrador para realizar o pagamento e liberar o acesso.</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/utils.js?v=20260508a"></script>
   <script src="js/api.js"></script>
-  <script src="js/modules/dashboard.js"></script>
+  <script src="js/modules/dashboard.js?v=20260328a"></script>
   <script src="js/modules/empresa.js"></script>
   <script src="js/modules/clientes.js"></script>
-  <script src="js/modules/faturas.js"></script>
+  <!-- Cache bust para garantir versão mais recente das regras de filtragem -->
+  <script src="js/modules/faturas.js?v=20260328a"></script>
   <script src="js/modules/consultar-prazo.js"></script>
   <script src="js/modules/usuarios.js"></script>
   <script src="js/router.js"></script>
-  <script src="js/modules/auth.js"></script>
+  <script src="js/modules/auth.js?v=20260508b"></script>
 </body>
 </html>

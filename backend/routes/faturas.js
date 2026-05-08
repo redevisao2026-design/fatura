@@ -8,14 +8,37 @@ const db = require('../database');
 const authMiddleware = require('../middleware/auth');
 const router = express.Router();
 
+// Diretório base para uploads (persistente em produção)
+const uploadBaseDir = (process.env.NODE_ENV === 'production' && fs.existsSync('/app/data'))
+  ? '/app/data/uploads'
+  : path.join(__dirname, '../../uploads');
+
+// Garante que o diretório exista
+if (!fs.existsSync(uploadBaseDir)) {
+  fs.mkdirSync(uploadBaseDir, { recursive: true });
+}
+
+// Utilitário: resolve caminho real do arquivo, checando diretórios e limpando paths antigos
+function resolveUploadPath(fileName) {
+  if (!fileName) return null;
+  const base = path.basename(fileName); // evita caminhos duplicados
+  const candidates = [
+    path.join(uploadBaseDir, base),
+    path.join(uploadBaseDir, fileName),
+    path.join(__dirname, '../../uploads', base),
+    path.join(__dirname, '../../uploads', fileName)
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  // se nenhum existir, retornar primeiro candidato para erro claro
+  return candidates[0];
+}
+
 // Configuração do multer
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../../uploads');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
+    cb(null, uploadBaseDir);
   },
   filename: (req, file, cb) => {
     const uniqueName = Date.now() + '-' + file.originalname;
@@ -41,6 +64,19 @@ const upload = multer({
   }
 });
 
+// Upload exclusivo para anexos (boletos / notas) - apenas PDF
+const uploadAnexos = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (ext === '.pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Apenas arquivos PDF são permitidos para anexos'));
+    }
+  }
+});
+
 // Função auxiliar para obter data atual de Brasília
 function getDataBrasilia() {
   const agora = new Date();
@@ -57,7 +93,7 @@ function formatarData(data) {
 
 router.use(authMiddleware);
 
-// Listar faturas
+// Listar faturas (exclui HAVER/vales negativos da visão principal)
 router.get('/', (req, res) => {
   // Primeiro, atualizar status das faturas vencidas automaticamente
   const dataAtualBrasilia = formatarData(getDataBrasilia());
@@ -75,11 +111,14 @@ router.get('/', (req, res) => {
         console.log('[Faturas] Status de faturas vencidas atualizado automaticamente');
       }
       
-      // Depois buscar todas as faturas
+      // Depois buscar faturas da visão principal (sem haver/vale negativo)
       const query = `
         SELECT f.*, c.nome as cliente_nome 
         FROM faturas f 
         JOIN clientes c ON f.cliente_id = c.id 
+        WHERE LOWER(f.status) != 'haver'
+          AND LOWER(f.numero_fatura) != 'haver'
+          AND f.valor >= 0
         ORDER BY f.data_vencimento DESC
       `;
       
@@ -93,13 +132,33 @@ router.get('/', (req, res) => {
   );
 });
 
+// Listar haver / vales negativos
+router.get('/haver', (req, res) => {
+  const query = `
+    SELECT f.*, c.nome as cliente_nome
+    FROM faturas f
+    JOIN clientes c ON f.cliente_id = c.id
+    WHERE LOWER(f.status) = 'haver'
+       OR LOWER(f.numero_fatura) = 'haver'
+       OR f.valor < 0
+    ORDER BY f.data_vencimento DESC
+  `;
+  db.all(query, (err, faturas) => {
+    if (err) {
+      return res.status(500).json({ erro: 'Erro ao buscar haver' });
+    }
+    res.json(faturas);
+  });
+});
+
 // Criar fatura
 router.post('/', (req, res) => {
-  const { cliente_id, empresa_id, numero_fatura, valor, data_vencimento, status } = req.body;
+  const { cliente_id, empresa_id, numero_fatura, valor, data_vencimento, status, conta_financeira, turno, pdv, observacao } = req.body;
 
   db.run(
-    'INSERT INTO faturas (cliente_id, empresa_id, numero_fatura, valor, data_vencimento, status) VALUES (?, ?, ?, ?, ?, ?)',
-    [cliente_id, empresa_id || null, numero_fatura, valor, data_vencimento, status || 'pendente'],
+    `INSERT INTO faturas (cliente_id, empresa_id, numero_fatura, valor, data_vencimento, status, conta_financeira, turno, pdv, observacao) 
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [cliente_id, empresa_id || null, numero_fatura, valor, data_vencimento, status || 'pendente', conta_financeira || null, turno || null, pdv || null, observacao || null],
     function(err) {
       if (err) {
         return res.status(400).json({ erro: 'Erro ao criar fatura' });
@@ -594,36 +653,150 @@ router.get('/download/:id', (req, res) => {
       return res.status(404).json({ erro: 'Fatura não encontrada' });
     }
 
-    const filePath = path.join(__dirname, '../../uploads', fatura.arquivo_path);
+    const filePath = resolveUploadPath(fatura.arquivo_path);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ erro: 'Arquivo da fatura não encontrado. Reenvie o anexo.' });
+    }
     res.download(filePath);
   });
 });
 
-// Atualizar status da fatura
-router.put('/:id/status', (req, res) => {
-  const { status } = req.body;
+// Download boleto
+router.get('/download/:id/boleto', (req, res) => {
+  db.get('SELECT boleto_path FROM faturas WHERE id = ?', [req.params.id], (err, fatura) => {
+    if (err || !fatura || !fatura.boleto_path) {
+      return res.status(404).json({ erro: 'Boleto não encontrado para esta fatura' });
+    }
+    const filePath = resolveUploadPath(fatura.boleto_path);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ erro: 'Arquivo de boleto ausente. Reenvie o anexo.' });
+    }
+    res.download(filePath);
+  });
+});
+
+// Download nota fiscal
+router.get('/download/:id/nota', (req, res) => {
+  db.get('SELECT nota_path FROM faturas WHERE id = ?', [req.params.id], (err, fatura) => {
+    if (err || !fatura || !fatura.nota_path) {
+      return res.status(404).json({ erro: 'Nota fiscal não encontrada para esta fatura' });
+    }
+    const filePath = resolveUploadPath(fatura.nota_path);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ erro: 'Arquivo de nota fiscal ausente. Reenvie o anexo.' });
+    }
+    res.download(filePath);
+  });
+});
+
+// Upload de anexos (apenas admin) - boleto e nota fiscal
+router.post('/:id/anexos', uploadAnexos.fields([
+  { name: 'boleto', maxCount: 1 },
+  { name: 'nota', maxCount: 1 }
+]), (req, res) => {
+  if (!req.usuario || !req.usuario.is_admin) {
+    return res.status(403).json({ erro: 'Apenas administradores podem enviar anexos' });
+  }
+
   const { id } = req.params;
 
-  db.run(
-    'UPDATE faturas SET status = ? WHERE id = ?',
-    [status, id],
-    function(err) {
-      if (err) {
-        return res.status(400).json({ erro: 'Erro ao atualizar status' });
-      }
-      res.json({ mensagem: 'Status atualizado com sucesso' });
+  db.get('SELECT boleto_path, nota_path FROM faturas WHERE id = ?', [id], (err, fatura) => {
+    if (err || !fatura) {
+      return res.status(404).json({ erro: 'Fatura não encontrada' });
     }
-  );
+
+    const novoBoleto = req.files?.boleto?.[0]?.filename || null;
+    const novaNota = req.files?.nota?.[0]?.filename || null;
+
+    // Apagar arquivos antigos se houver substituição
+    const uploadDir = path.join(__dirname, '../../uploads');
+    if (novoBoleto && fatura.boleto_path) {
+      const antigo = path.join(uploadDir, fatura.boleto_path);
+      if (fs.existsSync(antigo)) fs.unlinkSync(antigo);
+    }
+    if (novaNota && fatura.nota_path) {
+      const antigo = path.join(uploadDir, fatura.nota_path);
+      if (fs.existsSync(antigo)) fs.unlinkSync(antigo);
+    }
+
+    const boletoFinal = novoBoleto || fatura.boleto_path || null;
+    const notaFinal = novaNota || fatura.nota_path || null;
+
+    db.run(
+      'UPDATE faturas SET boleto_path = ?, nota_path = ? WHERE id = ?',
+      [boletoFinal, notaFinal, id],
+      function(updateErr) {
+        if (updateErr) {
+          console.error('[Faturas] Erro ao salvar anexos:', updateErr);
+          return res.status(400).json({ erro: 'Erro ao salvar anexos' });
+        }
+        res.json({
+          mensagem: 'Anexos salvos com sucesso',
+          boleto_path: boletoFinal,
+          nota_path: notaFinal
+        });
+      }
+    );
+  });
+});
+
+// Atualizar status da fatura (com suporte a haver e vale)
+router.put('/:id/status', (req, res) => {
+  const { status, valorHaver, valorVale } = req.body;
+  const { id } = req.params;
+
+  // Se há haver sendo gerado (valor pago > valor a pagar)
+  if (valorHaver && valorHaver > 0) {
+    db.run(
+      'UPDATE faturas SET status = ?, numero_fatura = ?, valor = ? WHERE id = ?',
+      ['haver', 'HAVER', -Math.abs(valorHaver), id],
+      function(err) {
+        if (err) {
+          return res.status(400).json({ erro: 'Erro ao atualizar status e gerar haver' });
+        }
+        res.json({ mensagem: 'Status atualizado e haver gerado com sucesso' });
+      }
+    );
+  } 
+  // Se há vale sendo gerado (valor pago < valor a pagar) - status permanece pendente
+  else if (valorVale && valorVale > 0) {
+    db.run(
+      'UPDATE faturas SET status = ?, numero_fatura = ?, valor = ? WHERE id = ?',
+      ['pendente', 'VALE', valorVale, id],
+      function(err) {
+        if (err) {
+          return res.status(400).json({ erro: 'Erro ao atualizar status e gerar vale' });
+        }
+        res.json({ mensagem: 'Status atualizado e vale gerado com sucesso' });
+      }
+    );
+  }
+  else {
+    // Atualização normal de status (pagamento total)
+    db.run(
+      'UPDATE faturas SET status = ? WHERE id = ?',
+      [status, id],
+      function(err) {
+        if (err) {
+          return res.status(400).json({ erro: 'Erro ao atualizar status' });
+        }
+        res.json({ mensagem: 'Status atualizado com sucesso' });
+      }
+    );
+  }
 });
 
 // Atualizar fatura completa
 router.put('/:id', (req, res) => {
-  const { cliente_id, numero_fatura, valor, data_vencimento, status } = req.body;
+  const { cliente_id, numero_fatura, valor, data_vencimento, status, conta_financeira, turno, pdv, observacao, empresa_id } = req.body;
   const { id } = req.params;
 
   db.run(
-    'UPDATE faturas SET cliente_id = ?, numero_fatura = ?, valor = ?, data_vencimento = ?, status = ? WHERE id = ?',
-    [cliente_id, numero_fatura, valor, data_vencimento, status, id],
+    `UPDATE faturas 
+     SET cliente_id = ?, numero_fatura = ?, valor = ?, data_vencimento = ?, status = ?, 
+         conta_financeira = ?, turno = ?, pdv = ?, observacao = ?, empresa_id = ?
+     WHERE id = ?`,
+    [cliente_id, numero_fatura, valor, data_vencimento, status, conta_financeira || null, turno || null, pdv || null, observacao || null, empresa_id || null, id],
     function(err) {
       if (err) {
         return res.status(400).json({ erro: 'Erro ao atualizar fatura' });
@@ -638,14 +811,26 @@ router.delete('/:id', (req, res) => {
   const { id } = req.params;
 
   // Primeiro busca o arquivo para deletar
-  db.get('SELECT arquivo_path FROM faturas WHERE id = ?', [id], (err, fatura) => {
+  db.get('SELECT arquivo_path, boleto_path, nota_path FROM faturas WHERE id = ?', [id], (err, fatura) => {
     if (err) {
       return res.status(500).json({ erro: 'Erro ao buscar fatura' });
     }
 
-    // Deleta o arquivo se existir
+    // Deleta os arquivos se existir
     if (fatura && fatura.arquivo_path) {
-      const filePath = path.join(__dirname, '../../uploads', fatura.arquivo_path);
+      const filePath = resolveUploadPath(fatura.arquivo_path);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+    if (fatura && fatura.boleto_path) {
+      const filePath = resolveUploadPath(fatura.boleto_path);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+    if (fatura && fatura.nota_path) {
+      const filePath = resolveUploadPath(fatura.nota_path);
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }

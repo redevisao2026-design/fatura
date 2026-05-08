@@ -730,3 +730,106 @@ function gerarArquivoRemessa() {
   
   showNotification(`Arquivo de remessa gerado com ${selecionadas.length} boletos!`);
 }
+
+// Funções de Perfil do Usuário
+window.openPerfilModal = async function() {
+  try {
+    // Buscar dados do usuário atual
+    const usuarioData = JSON.parse(localStorage.getItem('usuario'));
+    
+    if (!usuarioData || !usuarioData.id) {
+      Utils.showNotification('Erro ao carregar dados do usuário', 'error');
+      return;
+    }
+    
+    // Preencher formulário
+    document.getElementById('perfil-usuario-id').value = usuarioData.id;
+    document.getElementById('perfil-nome').value = usuarioData.nome || '';
+    document.getElementById('perfil-usuario').value = usuarioData.usuario || '';
+    document.getElementById('perfil-email').value = usuarioData.email || '';
+    
+    // Limpar campos de senha
+    document.getElementById('perfil-senha-atual').value = '';
+    document.getElementById('perfil-senha-nova').value = '';
+    document.getElementById('perfil-senha-confirmar').value = '';
+    
+    // Abrir modal
+    const modal = document.getElementById('perfil-modal');
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+  } catch (error) {
+    console.error('Erro ao abrir modal de perfil:', error);
+    Utils.showNotification('Erro ao carregar perfil', 'error');
+  }
+};
+
+window.closePerfilModal = function() {
+  const modal = document.getElementById('perfil-modal');
+  modal.classList.remove('show');
+  document.body.style.overflow = 'auto';
+  document.getElementById('form-perfil').reset();
+};
+
+window.submitPerfil = async function(event) {
+  event.preventDefault();
+  
+  const usuarioId = document.getElementById('perfil-usuario-id').value;
+  const nome = document.getElementById('perfil-nome').value;
+  const usuario = document.getElementById('perfil-usuario').value;
+  const email = document.getElementById('perfil-email').value;
+  const senhaAtual = document.getElementById('perfil-senha-atual').value;
+  const senhaNova = document.getElementById('perfil-senha-nova').value;
+  const senhaConfirmar = document.getElementById('perfil-senha-confirmar').value;
+  
+  // Validar alteração de senha
+  if (senhaAtual || senhaNova || senhaConfirmar) {
+    if (!senhaAtual) {
+      Utils.showNotification('Informe a senha atual para alterar a senha', 'error');
+      return;
+    }
+    if (!senhaNova) {
+      Utils.showNotification('Informe a nova senha', 'error');
+      return;
+    }
+    if (senhaNova !== senhaConfirmar) {
+      Utils.showNotification('As senhas não coincidem', 'error');
+      return;
+    }
+    if (senhaNova.length < 6) {
+      Utils.showNotification('A nova senha deve ter no mínimo 6 caracteres', 'error');
+      return;
+    }
+  }
+  
+  try {
+    const data = {
+      nome,
+      usuario,
+      email: email || null
+    };
+    
+    // Se está alterando senha, incluir no payload
+    if (senhaAtual && senhaNova) {
+      data.senhaAtual = senhaAtual;
+      data.senhaNova = senhaNova;
+    }
+    
+    const response = await api.updateUsuario(usuarioId, data);
+    
+    // Atualizar dados no localStorage
+    const usuarioData = JSON.parse(localStorage.getItem('usuario'));
+    usuarioData.nome = nome;
+    usuarioData.usuario = usuario;
+    usuarioData.email = email;
+    localStorage.setItem('usuario', JSON.stringify(usuarioData));
+    
+    // Atualizar nome exibido na interface
+    Auth.updateUserDisplay();
+    
+    Utils.showNotification('Perfil atualizado com sucesso!', 'success');
+    closePerfilModal();
+  } catch (error) {
+    console.error('Erro ao atualizar perfil:', error);
+    Utils.showNotification(error.message || 'Erro ao atualizar perfil', 'error');
+  }
+};

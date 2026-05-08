@@ -1,9 +1,91 @@
 // Faturas Module
 const Faturas = {
+  versao: '20260328a',
   faturas: [],
+  faturasListagem: [], // faturas sem haver/vale negativo para exibição principal
+  faturasHaver: [],
   clientes: [],
   empresas: [],
   faturasFiltradas: [],
+  haverAutocompleteInit: false,
+
+  normalizeStatus(status) {
+    return (status || '')
+      .toString()
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+  },
+
+  getStatusLabel(status) {
+    const normalized = this.normalizeStatus(status);
+
+    switch (normalized) {
+      case 'pendente':
+        return 'Pendente';
+      case 'pago':
+        return 'Pago';
+      case 'vencido':
+        return 'Vencido';
+      case 'nova gestao':
+        return 'Nova Gestão';
+      case 'advogado':
+        return 'Advogado';
+      case 'protestado':
+        return 'Protestado';
+      case 'descontado':
+        return 'Descontado';
+      case 'haver':
+        return 'Haver';
+      default:
+        return status || '';
+    }
+  },
+
+  getStatusClass(status) {
+    const normalized = this.normalizeStatus(status);
+
+    switch (normalized) {
+      case 'pago':
+        return 'success';
+      case 'vencido':
+        return 'danger';
+      case 'advogado':
+        return 'advogado';
+      case 'nova gestao':
+        return 'nova-gestao';
+      default:
+        return 'warning';
+    }
+  },
+
+  setStatusSelectValue(selectId, statusAtual, fallback = 'pendente') {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+
+    const normalizedStatus = this.normalizeStatus(statusAtual);
+    const option = Array.from(select.options).find(opt =>
+      this.normalizeStatus(opt.value) === normalizedStatus
+    );
+
+    select.value = option ? option.value : fallback;
+  },
+
+  /**
+   * Identifica faturas de haver/vale que não devem aparecer na lista principal.
+   * Critérios: status = haver, número = haver, ou valor negativo.
+   */
+  isHaver(f) {
+    const st = (f.status || '').toString().trim().toLowerCase();
+    const numero = (f.numero_fatura || '').toString().trim().toLowerCase();
+    const valor = parseFloat(f.valor) || 0;
+    // oculta apenas havers; vales devem aparecer mesmo que negativos
+    if (st === 'haver') return true;
+    if (numero === 'haver') return true;
+    if (valor < 0 && numero !== 'vale') return true;
+    return false;
+  },
 
   async loadCadastrar() {
     try {
@@ -18,23 +100,166 @@ const Faturas = {
   },
 
   async loadListar() {
-    console.log('[Faturas] Carregando lista de faturas...');
+    console.log(`[Faturas] v${this.versao} - Carregando lista de faturas...`);
     try {
-      [this.faturas, this.clientes, this.empresas] = await Promise.all([
+      const [todas, clientes, empresas] = await Promise.all([
         api.getFaturas(),
         api.getClientes(),
         this.loadEmpresas()
       ]);
-      console.log('[Faturas] Faturas carregadas:', this.faturas);
+      this.faturas = todas || [];
+      // base usada na página principal: remove haver/vale negativo
+      this.faturasListagem = this.faturas.filter(f => !this.isHaver(f));
+      this.clientes = clientes || [];
+      this.empresas = empresas || [];
+      this.isAdmin = localStorage.getItem('is_admin') === '1';
+      console.log('[Faturas] Faturas carregadas (total):', this.faturas.length);
+      console.log('[Faturas] Faturas para listagem (sem haver):', this.faturasListagem.length);
       console.log('[Faturas] Clientes carregados:', this.clientes);
       
       this.loadEmpresasFiltroSelect();
-      this.faturasFiltradas = [...this.faturas];
+      this.restaurarFiltros();
       this.setupFiltroListeners();
-      this.render();
+      this.aplicarFiltros();
     } catch (error) {
       console.error('[Faturas] Erro ao carregar:', error);
       Utils.showNotification('Erro ao carregar faturas', 'error');
+    }
+  },
+
+  renderHaver() {
+    console.log('[Faturas] Renderizando lista de haver');
+    const tbody = document.querySelector('#haver-table tbody');
+    const countSpan = document.getElementById('haver-count');
+    const totalSpan = document.getElementById('haver-total');
+    if (!tbody) return;
+
+    if (countSpan) countSpan.textContent = `(${this.faturasFiltradas.length})`;
+
+    const total = this.faturasFiltradas.reduce((sum, f) => sum + Math.abs(parseFloat(f.valor) || 0), 0);
+    if (totalSpan) totalSpan.textContent = Utils.formatCurrency(total);
+
+    if (this.faturasFiltradas.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="5" class="empty-state">
+            <p>Nenhum haver encontrado</p>
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    tbody.innerHTML = this.faturasFiltradas.map(f => {
+      const clienteNome = f.cliente_nome || (this.clientes.find(c => c.id === f.cliente_id)?.nome || '');
+      return `
+        <tr>
+          <td>${clienteNome}</td>
+          <td><strong>${f.numero_fatura}</strong></td>
+          <td>${Utils.formatDate(f.data_vencimento)}</td>
+          <td>${Utils.formatCurrency(f.valor)}</td>
+          <td class="table-actions" style="gap:6px;">
+            <button class="btn btn-sm btn-primary" onclick="Faturas.edit(${f.id})" title="Editar">✏️</button>
+            <button class="btn btn-sm btn-danger" onclick="Faturas.delete(${f.id})" title="Deletar">🗑️</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  },
+
+  async loadHaver() {
+    console.log('[Faturas] Carregando lista de haver...');
+    try {
+      const [havers, clientes, empresas] = await Promise.all([
+        api.getHaver(),
+        api.getClientes(),
+        this.loadEmpresas()
+      ]);
+      // aqui faturas contém apenas haver/vales negativos
+      this.faturas = havers || [];
+      this.faturasHaver = havers || [];
+      this.clientes = clientes || [];
+      this.empresas = empresas || [];
+      this.isAdmin = localStorage.getItem('is_admin') === '1';
+      this.faturasFiltradas = [...this.faturasHaver];
+      this.setupHaverSearch();
+      console.log('[Faturas] Haver encontrados:', this.faturasFiltradas.length);
+      this.renderHaver();
+    } catch (error) {
+      console.error('[Faturas] Erro ao carregar haver:', error);
+      Utils.showNotification('Erro ao carregar haver', 'error');
+    }
+  },
+
+  async openHaverModal() {
+    // garantir listas
+    if (!this.clientes.length) this.clientes = await api.getClientes();
+    if (!this.empresas.length) this.empresas = await this.loadEmpresas();
+
+    const hoje = new Date().toISOString().split('T')[0];
+    document.getElementById('haver-data').value = hoje;
+
+    // popular empresa e preparar autocomplete do cliente
+    const selEmp = document.getElementById('haver-empresa');
+    if (selEmp) {
+      selEmp.innerHTML = '<option value=\"\">Selecione</option>' + this.empresas.map(e => `<option value=\"${e.id}\">${e.nome}</option>`).join('');
+    }
+    const hiddenCli = document.getElementById('haver-cliente');
+    const inputCli = document.getElementById('haver-cliente-busca');
+    if (hiddenCli) hiddenCli.value = '';
+    if (inputCli) inputCli.value = '';
+    this.setupHaverClienteBusca();
+
+    document.getElementById('haver-form').reset();
+    document.getElementById('haver-modal').classList.add('show');
+    document.body.style.overflow = 'hidden';
+  },
+
+  closeHaverModal() {
+    const modal = document.getElementById('haver-modal');
+    if (modal) modal.classList.remove('show');
+    document.body.style.overflow = 'auto';
+    document.getElementById('haver-form')?.reset();
+  },
+
+  async submitHaver(event) {
+    event.preventDefault();
+    const empresa_id = document.getElementById('haver-empresa').value;
+    const cliente_id = document.getElementById('haver-cliente').value;
+    const data = document.getElementById('haver-data').value;
+    const valorRaw = parseFloat(document.getElementById('haver-valor').value);
+    const conta_financeira = document.getElementById('haver-conta').value;
+    const turno = document.getElementById('haver-turno').value;
+    const pdv = document.getElementById('haver-pdv').value;
+    const observacao = document.getElementById('haver-observacao').value;
+
+    if (!empresa_id || !cliente_id || !data || !valorRaw || valorRaw <= 0) {
+      Utils.showNotification('Preencha empresa, cliente, data e valor.', 'error');
+      return;
+    }
+
+    const valor = -Math.abs(valorRaw); // armazenar haver como negativo
+    const payload = {
+      empresa_id,
+      cliente_id,
+      numero_fatura: 'HAVER',
+      valor,
+      data_vencimento: data,
+      status: 'haver',
+      conta_financeira,
+      turno,
+      pdv,
+      observacao
+    };
+
+    try {
+      await api.createFatura(payload);
+      Utils.showNotification('Haver inserido com sucesso!', 'success');
+      this.closeHaverModal();
+      await this.loadHaver();
+    } catch (error) {
+      console.error('Erro ao inserir haver:', error);
+      Utils.showNotification('Erro ao salvar haver', 'error');
     }
   },
 
@@ -98,22 +323,26 @@ const Faturas = {
 
   render() {
     console.log('[Faturas] Renderizando lista de faturas');
-    console.log('[Faturas] Total de faturas:', this.faturasFiltradas.length);
+    // Garante que haver/vale não apareçam mesmo se chegarem aqui por engano
+    const linhas = this.faturasFiltradas.filter(f => !this.isHaver(f));
+    console.log('[Faturas] Total de faturas (sem haver):', linhas.length);
     
     const tbody = document.querySelector('#faturas-table tbody');
     const countSpan = document.getElementById('faturas-count');
+    const isAdmin = this.isAdmin;
     
     if (!tbody) {
       console.error('[Faturas] Elemento tbody não encontrado!');
       return;
     }
 
-    // Atualizar contador
+    // Atualizar contador (considerando ocultação de haver)
     if (countSpan) {
-      countSpan.textContent = `(${this.faturasFiltradas.length} de ${this.faturas.length})`;
+      const totalBase = this.faturasListagem && this.faturasListagem.length ? this.faturasListagem.length : this.faturas.length;
+      countSpan.textContent = `(${linhas.length} de ${totalBase})`;
     }
     
-    if (this.faturasFiltradas.length === 0) {
+    if (linhas.length === 0) {
       tbody.innerHTML = `
         <tr>
           <td colspan="6" class="empty-state">
@@ -124,9 +353,14 @@ const Faturas = {
       return;
     }
 
-    tbody.innerHTML = this.faturasFiltradas.map(f => {
-      const statusClass = f.status === 'pago' ? 'success' : 
-                         f.status === 'vencido' ? 'danger' : 'warning';
+    tbody.innerHTML = linhas.map(f => {
+      const statusClass = this.getStatusClass(f.status);
+      const statusLabel = this.getStatusLabel(f.status);
+      const normalizedStatus = this.normalizeStatus(f.status);
+      const hasBoleto = !!f.boleto_path;
+      const hasNota = !!f.nota_path;
+      const boletoClass = hasBoleto ? 'btn-success' : 'btn-secondary';
+      const notaClass = hasNota ? 'btn-success' : 'btn-secondary';
       
       return `
         <tr>
@@ -134,13 +368,17 @@ const Faturas = {
           <td><strong>${f.numero_fatura}</strong></td>
           <td>${Utils.formatDate(f.data_vencimento)}</td>
           <td><strong>${Utils.formatCurrency(f.valor)}</strong></td>
-          <td><span class="badge badge-${statusClass}">${f.status}</span></td>
-          <td class="table-actions">
+          <td><span class="badge badge-${statusClass}">${statusLabel}</span></td>
+          <td class="table-actions" style="gap:6px;">
+            <button class="btn btn-sm ${boletoClass}" onclick="Faturas.handleBoletoClick(${f.id})" title="${hasBoleto ? 'Baixar boleto' : (isAdmin ? 'Enviar boleto' : 'Sem boleto')}" ${hasBoleto || isAdmin ? '' : 'disabled'}>🧾</button>
+            <button class="btn btn-sm ${notaClass}" onclick="Faturas.handleNotaClick(${f.id})" title="${hasNota ? 'Baixar nota fiscal' : (isAdmin ? 'Enviar nota fiscal' : 'Sem nota fiscal')}" ${hasNota || isAdmin ? '' : 'disabled'}>📄</button>
+            ${isAdmin ? `<button class="btn btn-sm btn-info" onclick="Faturas.openAnexos(${f.id})" title="Anexar boleto/nota">📎</button>` : ''}
             <button class="btn btn-sm btn-primary" onclick="Faturas.edit(${f.id})" title="Editar fatura">✏️</button>
             <button class="btn btn-sm btn-success" onclick="Faturas.toggleStatus(${f.id}, '${f.status}')" title="Alterar status">
-              ${f.status === 'pago' ? '↩️' : '✓'}
+              ${f.status === 'pago' || f.status === 'haver' ? '↩️' : '✓'}
             </button>
             <button class="btn btn-sm btn-danger" onclick="Faturas.delete(${f.id})" title="Deletar">🗑️</button>
+            <button class="btn btn-sm btn-warning" onclick="Faturas.openStatusModal(${f.id}, '${f.status}')" title="Alterar status rapidamente">🏷️</button>
           </td>
         </tr>
       `;
@@ -185,12 +423,39 @@ const Faturas = {
     select.innerHTML = options;
   },
 
+  restaurarFiltros() {
+    const empresaSelect = document.getElementById('filtro-fatura-empresa');
+    const pesquisaInput = document.getElementById('filtro-fatura-pesquisa');
+    const statusSelect = document.getElementById('filtro-fatura-status');
+
+    const empSalvo = localStorage.getItem('filtro_faturas_empresa') || '';
+    if (empresaSelect && empSalvo && this.empresas.some(e => String(e.id) === String(empSalvo))) {
+      empresaSelect.value = empSalvo;
+    }
+
+    const pesquisaSalva = localStorage.getItem('filtro_faturas_pesquisa') || '';
+    if (pesquisaInput && pesquisaSalva) {
+      pesquisaInput.value = pesquisaSalva;
+    }
+
+    const statusSalvo = localStorage.getItem('filtro_faturas_status') || '';
+    if (statusSelect) {
+      this.setStatusSelectValue('filtro-fatura-status', statusSalvo, '');
+    }
+  },
+
   aplicarFiltros() {
     const pesquisa = document.getElementById('filtro-fatura-pesquisa')?.value.toLowerCase().trim() || '';
     const empresaId = document.getElementById('filtro-fatura-empresa')?.value || '';
     const status = document.getElementById('filtro-fatura-status')?.value || '';
+    const base = this.faturasListagem && this.faturasListagem.length ? this.faturasListagem : this.faturas;
 
-    this.faturasFiltradas = this.faturas.filter(f => {
+    // Persistir filtro de empresa
+    localStorage.setItem('filtro_faturas_empresa', empresaId);
+    localStorage.setItem('filtro_faturas_pesquisa', pesquisa);
+    localStorage.setItem('filtro_faturas_status', status);
+
+    this.faturasFiltradas = base.filter(f => {
       // Filtro por pesquisa (nome ou CPF/CNPJ do cliente)
       if (pesquisa) {
         const cliente = this.clientes.find(c => c.id === f.cliente_id);
@@ -223,7 +488,7 @@ const Faturas = {
       }
 
       // Filtro por status
-      if (status && f.status !== status) {
+      if (status && this.normalizeStatus(f.status) !== this.normalizeStatus(status)) {
         return false;
       }
 
@@ -376,9 +641,19 @@ const Faturas = {
     console.log('[Faturas] Editando fatura ID:', id);
     try {
       // Buscar dados da fatura
-      const faturas = await api.getFaturas();
+      let faturas = await api.getFaturas();
       console.log('[Faturas] Faturas carregadas:', faturas.length);
-      const fatura = faturas.find(f => f.id === id);
+      let fatura = faturas.find(f => f.id === id);
+
+      // Se não encontrar, tentar na lista de haver/vales
+      if (!fatura) {
+        const havers = await api.getHaver?.();
+        if (havers && havers.length) {
+          console.log('[Faturas] Buscando em haver, total:', havers.length);
+          fatura = havers.find(f => f.id === id);
+        }
+      }
+
       console.log('[Faturas] Fatura encontrada:', fatura);
       
       if (!fatura) {
@@ -398,7 +673,7 @@ const Faturas = {
       document.getElementById('edit-numero-fatura').value = fatura.numero_fatura;
       document.getElementById('edit-valor').value = fatura.valor;
       document.getElementById('edit-data-vencimento').value = fatura.data_vencimento;
-      document.getElementById('edit-status').value = fatura.status;
+      this.setStatusSelectValue('edit-status', fatura.status);
 
       console.log('[Faturas] Abrindo modal de edição');
       // Abrir modal
@@ -443,13 +718,17 @@ const Faturas = {
   },
 
   async toggleStatus(id, currentStatus) {
-    alert('toggleStatus chamado! ID: ' + id + ', Status: ' + currentStatus);
     console.log('[Faturas] toggleStatus chamado:', id, currentStatus);
     
     // Se está marcando como pago, abrir modal de pagamento
-    if (currentStatus !== 'pago') {
+    if (this.normalizeStatus(currentStatus) !== 'pago') {
       console.log('[Faturas] Abrindo modal de pagamento...');
-      this.openPagamentoModal(id);
+      try {
+        await this.openPagamentoModal(id);
+      } catch (err) {
+        console.error('[Faturas] Erro ao abrir pagamento:', err);
+        Utils.showNotification('Erro ao abrir pagamento', 'error');
+      }
     } else {
       // Se está desmarcando como pago, voltar para pendente
       if (!Utils.confirm('Deseja reverter o pagamento desta fatura?')) return;
@@ -465,11 +744,13 @@ const Faturas = {
     }
   },
 
-  openPagamentoModal(id) {
+  async openPagamentoModal(id) {
     console.log('[Faturas] openPagamentoModal chamado:', id);
-    console.log('[Faturas] Faturas filtradas:', this.faturasFiltradas);
     
-    const fatura = this.faturasFiltradas.find(f => f.id === id);
+    // Garantir que achamos a fatura (filtrada ou base completa)
+    let fatura = (this.faturasFiltradas || []).find(f => f.id === id)
+              || (this.faturasListagem || []).find(f => f.id === id)
+              || (this.faturas || []).find(f => f.id === id);
     if (!fatura) {
       console.error('[Faturas] Fatura não encontrada:', id);
       Utils.showNotification('Fatura não encontrada', 'error');
@@ -480,126 +761,136 @@ const Faturas = {
 
     // Preencher dados da fatura
     document.getElementById('pag-fatura-id').value = fatura.id;
-    document.getElementById('pag-cliente-nome').textContent = fatura.cliente_nome;
-    document.getElementById('pag-numero-fatura').textContent = fatura.numero_fatura;
-    document.getElementById('pag-valor-total').textContent = Utils.formatCurrency(fatura.valor);
     document.getElementById('pag-valor-original').value = fatura.valor;
+    document.getElementById('pag-cliente-nome').value = fatura.cliente_nome;
+    document.getElementById('pag-numero-fatura').value = fatura.numero_fatura;
     
     // Definir data atual
     const hoje = new Date().toISOString().split('T')[0];
     document.getElementById('pag-data').value = hoje;
     
-    // Resetar form
-    document.getElementById('form-pagamento').reset();
-    document.getElementById('pag-fatura-id').value = fatura.id;
-    document.getElementById('pag-valor-original').value = fatura.valor;
-    document.getElementById('pag-data').value = hoje;
+    // Resetar valores - valor pago começa com o valor total
+    document.getElementById('pag-valor-haver').value = 0;
+    document.getElementById('pag-valor-pago').value = fatura.valor;
+    document.getElementById('pag-acao').value = 'normal';
+    
+    // Preencher haver disponível (cliente+empresa) e ajustar valores
+    await this.preencherHaverDisponivel(fatura);
+
+    // Atualizar resumo
+    this.calcularResumo();
     
     // Mostrar modal
     const modal = document.getElementById('pagamento-modal');
-    console.log('[Faturas] Modal encontrado:', !!modal);
-    modal.classList.add('active');
-    console.log('[Faturas] Modal deve estar visível agora');
+    if (!modal) {
+      console.error('[Faturas] Modal não encontrado no DOM!');
+      return;
+    }
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
   },
 
   closePagamentoModal() {
-    document.getElementById('pagamento-modal').classList.remove('active');
-    document.getElementById('form-pagamento').reset();
-    
-    // Esconder todos os campos condicionais
-    document.getElementById('pag-campos-parcial').style.display = 'none';
-    document.getElementById('pag-campos-vale').style.display = 'none';
-    document.getElementById('pag-campos-haver').style.display = 'none';
-  },
-
-  handleTipoPagamento() {
-    const tipo = document.getElementById('pag-tipo').value;
-    const valorOriginal = parseFloat(document.getElementById('pag-valor-original').value);
-    
-    // Esconder todos os campos
-    document.getElementById('pag-campos-parcial').style.display = 'none';
-    document.getElementById('pag-campos-vale').style.display = 'none';
-    document.getElementById('pag-campos-haver').style.display = 'none';
-    
-    // Mostrar campos específicos
-    if (tipo === 'parcial') {
-      document.getElementById('pag-campos-parcial').style.display = 'block';
-      document.getElementById('pag-valor-pago').value = valorOriginal;
-      document.getElementById('pag-desconto').value = 0;
-      this.calcularDesconto();
-    } else if (tipo === 'vale') {
-      document.getElementById('pag-campos-vale').style.display = 'block';
-      document.getElementById('pag-valor-vale').value = valorOriginal;
-    } else if (tipo === 'haver') {
-      document.getElementById('pag-campos-haver').style.display = 'block';
-      document.getElementById('pag-valor-haver').value = valorOriginal;
+    const modal = document.getElementById('pagamento-modal');
+    if (modal) {
+      modal.classList.remove('show');
     }
+    document.body.style.overflow = 'auto';
+    document.getElementById('form-pagamento').reset();
   },
 
-  calcularDesconto() {
-    const valorOriginal = parseFloat(document.getElementById('pag-valor-original').value);
+  calcularResumo() {
+    const valorOriginal = parseFloat(document.getElementById('pag-valor-original').value) || 0;
+    let valorHaver = parseFloat(document.getElementById('pag-valor-haver').value) || 0;
     const valorPago = parseFloat(document.getElementById('pag-valor-pago').value) || 0;
-    const desconto = valorOriginal - valorPago;
+    const totalPago = valorPago + valorHaver;
+    const botoesNormal = document.getElementById('pag-botoes-normal');
+    const botoesDiff = document.getElementById('pag-botoes-diferenca');
+    const botoesHaver = document.getElementById('pag-botoes-haver');
+    // reset ação para normal ao recalcular
+    document.getElementById('pag-acao').value = 'normal';
     
-    document.getElementById('pag-desconto').value = desconto.toFixed(2);
-    this.atualizarResumo();
-  },
-
-  calcularValorPago() {
-    const valorOriginal = parseFloat(document.getElementById('pag-valor-original').value);
-    const desconto = parseFloat(document.getElementById('pag-desconto').value) || 0;
-    const valorPago = valorOriginal - desconto;
+    // Se pagamento (dinheiro + haver) ultrapassa o valor original, gera novo haver (troco)
+    if (totalPago > valorOriginal) {
+      const haverGerado = totalPago - valorOriginal;
+      document.getElementById('pag-diferenca').textContent = `-${haverGerado.toFixed(2).replace('.', ',')}`;
+      if (botoesNormal) botoesNormal.style.display = 'none';
+      if (botoesDiff) botoesDiff.style.display = 'none';
+      if (botoesHaver) botoesHaver.style.display = 'flex';
+    } 
+    // Se total (dinheiro + haver) for menor, vira vale/diferença
+    else if (totalPago < valorOriginal) {
+      const diferenca = valorOriginal - totalPago;
+      document.getElementById('pag-diferenca').textContent = diferenca.toFixed(2).replace('.', ',');
+      if (botoesNormal) botoesNormal.style.display = 'none';
+      if (botoesDiff) botoesDiff.style.display = 'flex';
+      if (botoesHaver) botoesHaver.style.display = 'none';
+    }
+    // Se valor pago for igual ao valor a pagar, zerar tudo
+    else {
+      document.getElementById('pag-valor-haver').value = '0';
+      document.getElementById('pag-diferenca').textContent = '0,00';
+      valorHaver = 0;
+      if (botoesNormal) botoesNormal.style.display = 'flex';
+      if (botoesDiff) botoesDiff.style.display = 'none';
+      if (botoesHaver) botoesHaver.style.display = 'none';
+    }
     
-    document.getElementById('pag-valor-pago').value = valorPago.toFixed(2);
-    this.atualizarResumo();
-  },
-
-  atualizarResumo() {
-    const valorOriginal = parseFloat(document.getElementById('pag-valor-original').value);
-    const valorPago = parseFloat(document.getElementById('pag-valor-pago').value) || 0;
-    const desconto = parseFloat(document.getElementById('pag-desconto').value) || 0;
-    const saldoRestante = valorOriginal - valorPago - desconto;
-    
-    document.getElementById('pag-resumo-original').textContent = Utils.formatCurrency(valorOriginal);
-    document.getElementById('pag-resumo-desconto').textContent = Utils.formatCurrency(desconto);
-    document.getElementById('pag-resumo-pago').textContent = Utils.formatCurrency(valorPago);
-    document.getElementById('pag-resumo-restante').textContent = Utils.formatCurrency(Math.max(0, saldoRestante));
+    document.getElementById('pag-valor-pagar').textContent = Utils.formatCurrency(valorOriginal);
   },
 
   async submitPagamento(event) {
     event.preventDefault();
     
     const faturaId = document.getElementById('pag-fatura-id').value;
-    const tipo = document.getElementById('pag-tipo').value;
+    const contaFinanceira = document.getElementById('pag-conta-financeira').value;
     const data = document.getElementById('pag-data').value;
-    const observacoes = document.getElementById('pag-observacoes').value;
+    const valorHaver = parseFloat(document.getElementById('pag-valor-haver').value) || 0;
+    const valorPago = parseFloat(document.getElementById('pag-valor-pago').value) || 0;
+    const valorOriginal = parseFloat(document.getElementById('pag-valor-original').value) || 0;
+    const acao = document.getElementById('pag-acao').value || 'normal';
+    const diferenca = valorOriginal - (valorPago + valorHaver);
     
-    let dadosPagamento = {
-      tipo,
-      data,
-      observacoes
-    };
+    // Validar conta financeira
+    if (!contaFinanceira) {
+      Utils.showNotification('Selecione uma conta financeira', 'error');
+      return;
+    }
     
-    // Adicionar dados específicos por tipo
-    if (tipo === 'total') {
-      dadosPagamento.valorPago = parseFloat(document.getElementById('pag-valor-original').value);
-    } else if (tipo === 'parcial') {
-      dadosPagamento.valorPago = parseFloat(document.getElementById('pag-valor-pago').value);
-      dadosPagamento.desconto = parseFloat(document.getElementById('pag-desconto').value);
-    } else if (tipo === 'vale') {
-      dadosPagamento.valorVale = parseFloat(document.getElementById('pag-valor-vale').value);
-      dadosPagamento.observacoesVale = document.getElementById('pag-obs-vale').value;
-    } else if (tipo === 'haver') {
-      dadosPagamento.valorHaver = parseFloat(document.getElementById('pag-valor-haver').value);
-      dadosPagamento.observacoesHaver = document.getElementById('pag-obs-haver').value;
+    // Validar se há valor pago
+    if (valorPago <= 0) {
+      Utils.showNotification('Informe o valor pago', 'error');
+      return;
     }
     
     try {
-      // Por enquanto, apenas marcar como pago
-      // TODO: Implementar endpoint no backend para salvar detalhes do pagamento
-      await api.updateFaturaStatus(faturaId, 'pago');
+      let mensagem = 'Pagamento registrado com sucesso!';
       
-      Utils.showNotification('Pagamento registrado com sucesso!', 'success');
+      if (valorPago + valorHaver > valorOriginal) {
+        if (acao === 'juros') {
+          // Trata excedente como juros: marca pago sem haver
+          await api.updateFaturaStatus(faturaId, 'pago', 0, 0);
+          mensagem += ` Juros registrado: ${Utils.formatCurrency((valorPago + valorHaver) - valorOriginal)}`;
+        } else { // haver
+          const haverGerado = (valorPago + valorHaver) - valorOriginal;
+          await api.updateFaturaStatus(faturaId, 'pago', haverGerado, 0);
+          mensagem += ` Haver gerado: ${Utils.formatCurrency(haverGerado)}`;
+        }
+      } else if (valorPago + valorHaver < valorOriginal) {
+        const valorVale = valorOriginal - (valorPago + valorHaver);
+        if (acao === 'desconto') {
+          // Considera pago com desconto, sem gerar vale
+          await api.updateFaturaStatus(faturaId, 'pago', 0, 0);
+          mensagem += ` Desconto aplicado: ${Utils.formatCurrency(valorVale)}`;
+        } else { // normal ou vale
+          await api.updateFaturaStatus(faturaId, 'pago', 0, valorVale);
+          mensagem += ` Vale gerado: ${Utils.formatCurrency(valorVale)}`;
+        }
+      } else {
+        await api.updateFaturaStatus(faturaId, 'pago', 0, 0);
+      }
+      
+      Utils.showNotification(mensagem, 'success');
       this.closePagamentoModal();
       await this.loadListar();
     } catch (error) {
@@ -619,9 +910,253 @@ const Faturas = {
       Utils.showNotification('Erro ao deletar fatura', 'error');
       console.error(error);
     }
+  },
+
+  openAnexos(id) {
+    const fatura = this.faturas.find(f => f.id === id);
+    if (!fatura) {
+      Utils.showNotification('Fatura não encontrada', 'error');
+      return;
+    }
+    document.getElementById('anexo-fatura-id').value = id;
+    document.getElementById('anexo-numero').textContent = fatura.numero_fatura;
+    document.getElementById('anexo-cliente').textContent = fatura.cliente_nome;
+    document.getElementById('anexo-boleto').value = '';
+    document.getElementById('anexo-nota').value = '';
+
+    const btnBoleto = document.getElementById('anexo-download-boleto');
+    const btnNota = document.getElementById('anexo-download-nf');
+    if (btnBoleto) {
+      btnBoleto.disabled = !fatura.boleto_path;
+      btnBoleto.onclick = () => this.downloadBoleto(id);
+    }
+    if (btnNota) {
+      btnNota.disabled = !fatura.nota_path;
+      btnNota.onclick = () => this.downloadNota(id);
+    }
+
+    const modal = document.getElementById('anexos-fatura-modal');
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+  },
+
+  closeAnexos() {
+    const modal = document.getElementById('anexos-fatura-modal');
+    if (modal) modal.classList.remove('show');
+    document.body.style.overflow = 'auto';
+    document.getElementById('anexos-form')?.reset();
+  },
+
+  async submitAnexos(event) {
+    event.preventDefault();
+    const id = document.getElementById('anexo-fatura-id').value;
+    const boletoFile = document.getElementById('anexo-boleto').files[0];
+    const notaFile = document.getElementById('anexo-nota').files[0];
+
+    if (!boletoFile && !notaFile) {
+      Utils.showNotification('Envie pelo menos um arquivo (boleto ou nota fiscal)', 'error');
+      return;
+    }
+
+    const formData = new FormData();
+    if (boletoFile) formData.append('boleto', boletoFile);
+    if (notaFile) formData.append('nota', notaFile);
+
+    try {
+      await api.uploadAnexosFatura(id, formData);
+      Utils.showNotification('Anexos enviados com sucesso!', 'success');
+      this.closeAnexos();
+      await this.loadListar();
+    } catch (error) {
+      console.error('Erro ao enviar anexos:', error);
+      Utils.showNotification(error.message || 'Erro ao enviar anexos', 'error');
+    }
+  },
+
+  async downloadBoleto(id) {
+    try {
+      const blob = await api.downloadBoleto(id);
+      const fatura = this.faturas.find(f => f.id === id);
+      const nome = fatura ? fatura.numero_fatura : id;
+      Utils.downloadFile(blob, `boleto-${nome}.pdf`);
+    } catch (error) {
+      Utils.showNotification(error.message || 'Boleto não disponível', 'error');
+    }
+  },
+
+  async downloadNota(id) {
+    try {
+      const blob = await api.downloadNota(id);
+      const fatura = this.faturas.find(f => f.id === id);
+      const nome = fatura ? fatura.numero_fatura : id;
+      Utils.downloadFile(blob, `nota-${nome}.pdf`);
+    } catch (error) {
+      Utils.showNotification(error.message || 'Nota fiscal não disponível', 'error');
+    }
+  },
+
+  setAcaoPagamento(acao, autoSubmit = false) {
+    document.getElementById('pag-acao').value = acao || 'normal';
+    if (autoSubmit) {
+      document.getElementById('form-pagamento').requestSubmit();
+    }
+  },
+
+  async preencherHaverDisponivel(fatura) {
+    try {
+      const havers = await api.getHaver();
+      if (!havers || !havers.length) return;
+      const disponivel = havers
+        .filter(h => String(h.cliente_id) === String(fatura.cliente_id) && String(h.empresa_id) === String(fatura.empresa_id))
+        .reduce((sum, h) => sum + Math.abs(parseFloat(h.valor) || 0), 0);
+      const inputHaver = document.getElementById('pag-valor-haver');
+      const inputPago = document.getElementById('pag-valor-pago');
+      if (inputHaver) inputHaver.value = disponivel.toFixed(2);
+
+      // Sugere valor pago já descontando haver disponível
+      if (inputPago) {
+        const valorOriginal = parseFloat(document.getElementById('pag-valor-original').value) || 0;
+        const sugerido = Math.max(0, valorOriginal - disponivel);
+        inputPago.value = sugerido.toFixed(2);
+      }
+    } catch (e) {
+      console.error('Erro ao preencher haver disponível:', e);
+    }
+  },
+
+  // Busca no haver por cliente/número/valor
+  setupHaverSearch() {
+    const searchInput = document.getElementById('haver-search');
+    if (!searchInput) return;
+    searchInput.removeEventListener?.('input', this._haverSearchHandler || (()=>{}));
+    this._haverSearchHandler = Utils.debounce(() => this.aplicarFiltroHaverPesquisa(), 250);
+    searchInput.addEventListener('input', this._haverSearchHandler);
+  },
+
+  aplicarFiltroHaverPesquisa() {
+    const termo = (document.getElementById('haver-search')?.value || '').trim().toLowerCase();
+    if (!termo) {
+      this.faturasFiltradas = [...this.faturasHaver];
+      this.renderHaver();
+      return;
+    }
+    this.faturasFiltradas = this.faturasHaver.filter(f => {
+      const nome = (f.cliente_nome || '').toLowerCase();
+      const num = (f.numero_fatura || '').toLowerCase();
+      const valorStr = String(f.valor || '').toLowerCase();
+      return nome.includes(termo) || num.includes(termo) || valorStr.includes(termo);
+    });
+    this.renderHaver();
+  },
+
+  // Autocomplete cliente no haver
+  setupHaverClienteBusca() {
+    if (this.haverAutocompleteInit) return;
+    const input = document.getElementById('haver-cliente-busca');
+    const hidden = document.getElementById('haver-cliente');
+    const list = document.getElementById('haver-cliente-sugestoes');
+    if (!input || !hidden || !list) return;
+
+    const renderSugestoes = (termo) => {
+      const q = (termo || '').toLowerCase().trim();
+      if (!q) {
+        list.classList.add('hidden');
+        return;
+      }
+      const matches = this.clientes
+        .filter(c => c.nome.toLowerCase().includes(q) || (c.cpf_cnpj || '').replace(/\D/g,'').includes(q))
+        .slice(0, 20);
+      if (!matches.length) {
+        list.classList.add('hidden');
+        return;
+      }
+      list.innerHTML = matches.map(c => `
+        <div class="autocomplete-item" data-id="${c.id}" data-nome="${c.nome}">
+          ${c.nome}
+          <small>${c.cpf_cnpj || ''}</small>
+        </div>
+      `).join('');
+      list.classList.remove('hidden');
+    };
+
+    input.addEventListener('input', (e) => {
+      hidden.value = '';
+      renderSugestoes(e.target.value);
+    });
+
+    input.addEventListener('focus', () => {
+      renderSugestoes(input.value);
+    });
+
+    document.addEventListener('click', (ev) => {
+      if (!list.contains(ev.target) && ev.target !== input) {
+        list.classList.add('hidden');
+      }
+    });
+
+    list.addEventListener('click', (ev) => {
+      const item = ev.target.closest('.autocomplete-item');
+      if (!item) return;
+      const id = item.getAttribute('data-id');
+      const nome = item.getAttribute('data-nome');
+      hidden.value = id;
+      input.value = nome;
+      list.classList.add('hidden');
+    });
+
+    this.haverAutocompleteInit = true;
+  },
+
+  // Modal de status rápido
+  openStatusModal(id, statusAtual) {
+    document.getElementById('status-fatura-id').value = id;
+    this.setStatusSelectValue('status-select', statusAtual);
+    const modal = document.getElementById('status-modal');
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+  },
+
+  closeStatusModal() {
+    const modal = document.getElementById('status-modal');
+    if (modal) modal.classList.remove('show');
+    document.body.style.overflow = 'auto';
+    document.getElementById('status-form')?.reset();
+  },
+
+  async submitStatus(event) {
+    event.preventDefault();
+    const id = document.getElementById('status-fatura-id').value;
+    const status = document.getElementById('status-select').value;
+    try {
+      await api.updateFaturaStatus(id, status, 0, 0);
+      Utils.showNotification('Status atualizado!', 'success');
+      this.closeStatusModal();
+      await this.loadListar();
+    } catch (error) {
+      console.error('Erro ao atualizar status:', error);
+      Utils.showNotification('Erro ao atualizar status', 'error');
+    }
+  },
+
+  handleBoletoClick(id) {
+    if (this.isAdmin) {
+      this.openAnexos(id);
+    } else {
+      this.downloadBoleto(id);
+    }
+  },
+
+  handleNotaClick(id) {
+    if (this.isAdmin) {
+      this.openAnexos(id);
+    } else {
+      this.downloadNota(id);
+    }
   }
 };
 
 // Event Listeners
 document.getElementById('fatura-form')?.addEventListener('submit', (e) => Faturas.create(e));
 document.getElementById('upload-form')?.addEventListener('submit', (e) => Faturas.upload(e));
+document.getElementById('anexos-form')?.addEventListener('submit', (e) => Faturas.submitAnexos(e));
+document.getElementById('haver-form')?.addEventListener('submit', (e) => Faturas.submitHaver(e));

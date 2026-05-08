@@ -123,6 +123,13 @@ class ApiService {
     return this.handleResponse(response);
   }
 
+  async getHaver() {
+    const response = await fetch(`${API_URL}/faturas/haver`, {
+      headers: this.getHeaders(false)
+    });
+    return this.handleResponse(response);
+  }
+
   async createFatura(data) {
     const response = await fetch(`${API_URL}/faturas`, {
       method: 'POST',
@@ -132,11 +139,11 @@ class ApiService {
     return this.handleResponse(response);
   }
 
-  async updateFaturaStatus(id, status) {
+  async updateFaturaStatus(id, status, valorHaver = 0, valorVale = 0) {
     const response = await fetch(`${API_URL}/faturas/${id}/status`, {
       method: 'PUT',
       headers: this.getHeaders(),
-      body: JSON.stringify({ status })
+      body: JSON.stringify({ status, valorHaver, valorVale })
     });
     return this.handleResponse(response);
   }
@@ -172,6 +179,31 @@ class ApiService {
       headers: this.getHeaders(false)
     });
     if (!response.ok) throw new Error('Erro ao baixar fatura');
+    return response.blob();
+  }
+
+  async uploadAnexosFatura(id, formData) {
+    const response = await fetch(`${API_URL}/faturas/${id}/anexos`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${this.token}` },
+      body: formData
+    });
+    return this.handleResponse(response);
+  }
+
+  async downloadBoleto(id) {
+    const response = await fetch(`${API_URL}/faturas/download/${id}/boleto`, {
+      headers: this.getHeaders(false)
+    });
+    if (!response.ok) throw new Error('Boleto não disponível');
+    return response.blob();
+  }
+
+  async downloadNota(id) {
+    const response = await fetch(`${API_URL}/faturas/download/${id}/nota`, {
+      headers: this.getHeaders(false)
+    });
+    if (!response.ok) throw new Error('Nota fiscal não disponível');
     return response.blob();
   }
 

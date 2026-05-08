@@ -1,7 +1,12 @@
 // Utility Functions
 const Utils = {
   // Notificações
-  showNotification(message, type = 'success') {
+  showNotification(message, type = 'success', options = {}) {
+    const {
+      duration = 3000,
+      maxWidth = '400px'
+    } = options;
+
     const notification = document.createElement('div');
     notification.className = `notification notification-${type}`;
     notification.style.cssText = `
@@ -16,7 +21,8 @@ const Utils = {
       z-index: 10000;
       animation: slideIn 0.3s ease;
       font-weight: 500;
-      max-width: 400px;
+      line-height: 1.4;
+      max-width: ${maxWidth};
     `;
     notification.textContent = message;
     document.body.appendChild(notification);
@@ -24,7 +30,7 @@ const Utils = {
     setTimeout(() => {
       notification.style.animation = 'slideOut 0.3s ease';
       setTimeout(() => notification.remove(), 300);
-    }, 3000);
+    }, duration);
   },
 
   // Formatação
@@ -170,6 +176,14 @@ function closeFaturasModal() {
   }
 }
 
+// Fechar menu móvel (referenciado no HTML)
+function closeMenu() {
+  const navLinks = document.getElementById('nav-links');
+  const overlay = document.getElementById('nav-overlay');
+  if (navLinks) navLinks.classList.remove('active');
+  if (overlay) overlay.classList.remove('active');
+}
+
 function openEmpresaModal() {
   const modal = document.getElementById('empresa-modal');
   if (modal) {
@@ -191,6 +205,8 @@ window.addEventListener('click', (event) => {
   const empresaModal = document.getElementById('empresa-modal');
   const clientesModal = document.getElementById('clientes-modal');
   const faturasModal = document.getElementById('faturas-modal');
+  const perfilModal = document.getElementById('perfil-modal');
+  const anexosModal = document.getElementById('anexos-fatura-modal');
   
   if (event.target === empresaModal) {
     closeEmpresaModal();
@@ -201,6 +217,12 @@ window.addEventListener('click', (event) => {
   if (event.target === faturasModal) {
     closeFaturasModal();
   }
+  if (event.target === perfilModal) {
+    closePerfilModal();
+  }
+  if (event.target === anexosModal) {
+    Faturas?.closeAnexos?.();
+  }
 });
 
 // Fechar modal com ESC
@@ -209,5 +231,7 @@ window.addEventListener('keydown', (event) => {
     closeEmpresaModal();
     closeClientesModal();
     closeFaturasModal();
+    closePerfilModal();
+    Faturas?.closeAnexos?.();
   }
 });

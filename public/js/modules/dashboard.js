@@ -2,6 +2,15 @@
 const Dashboard = {
   charts: {},
   empresaFiltro: '',
+
+  normalizeStatus(status) {
+    return (status || '')
+      .toString()
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+  },
   
   async load() {
     try {
@@ -86,9 +95,10 @@ const Dashboard = {
     if (!ctx) return;
     
     const statusCount = {
-      'pendente': faturas.filter(f => f.status === 'pendente').length,
-      'pago': faturas.filter(f => f.status === 'pago').length,
-      'vencido': faturas.filter(f => f.status === 'vencido').length
+      'pendente': faturas.filter(f => this.normalizeStatus(f.status) === 'pendente').length,
+      'pago': faturas.filter(f => this.normalizeStatus(f.status) === 'pago').length,
+      'vencido': faturas.filter(f => this.normalizeStatus(f.status) === 'vencido').length,
+      'novaGestao': faturas.filter(f => this.normalizeStatus(f.status) === 'nova gestao').length
     };
     
     if (this.charts.status) {
@@ -98,10 +108,10 @@ const Dashboard = {
     this.charts.status = new Chart(ctx, {
       type: 'doughnut',
       data: {
-        labels: ['Pendente', 'Pago', 'Vencido'],
+        labels: ['Pendente', 'Pago', 'Vencido', 'Nova Gestão'],
         datasets: [{
-          data: [statusCount.pendente, statusCount.pago, statusCount.vencido],
-          backgroundColor: ['#FF9800', '#10b981', '#ef4444'],
+          data: [statusCount.pendente, statusCount.pago, statusCount.vencido, statusCount.novaGestao],
+          backgroundColor: ['#FF9800', '#10b981', '#ef4444', '#0ea5e9'],
           borderWidth: 0
         }]
       },
@@ -195,9 +205,19 @@ const Dashboard = {
       const mesAno = `${String(data.getMonth() + 1).padStart(2, '0')}/${data.getFullYear()}`;
       
       if (!meses[mesAno]) {
-        meses[mesAno] = { pendente: 0, pago: 0, vencido: 0 };
+        meses[mesAno] = { pendente: 0, pago: 0, vencido: 0, novaGestao: 0 };
       }
-      meses[mesAno][f.status]++;
+
+      const normalizedStatus = this.normalizeStatus(f.status);
+      if (normalizedStatus === 'pendente') {
+        meses[mesAno].pendente++;
+      } else if (normalizedStatus === 'pago') {
+        meses[mesAno].pago++;
+      } else if (normalizedStatus === 'vencido') {
+        meses[mesAno].vencido++;
+      } else if (normalizedStatus === 'nova gestao') {
+        meses[mesAno].novaGestao++;
+      }
     });
     
     // Ordenar por data
@@ -240,6 +260,14 @@ const Dashboard = {
             data: ultimos6Meses.map(m => meses[m].vencido),
             borderColor: '#ef4444',
             backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            tension: 0.4,
+            fill: true
+          },
+          {
+            label: 'Nova Gestão',
+            data: ultimos6Meses.map(m => meses[m].novaGestao),
+            borderColor: '#0ea5e9',
+            backgroundColor: 'rgba(14, 165, 233, 0.1)',
             tension: 0.4,
             fill: true
           }

@@ -47,6 +47,11 @@ class Router {
         navIndex: 3,
         onLoad: () => Faturas.loadUpload()
       },
+      'haver-listar': {
+        element: 'haver-section',
+        navIndex: 3,
+        onLoad: () => Faturas.loadHaver()
+      },
       'consultar-prazo': {
         element: 'consultar-prazo-section',
         navIndex: 4,
