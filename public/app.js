@@ -1,4 +1,11 @@
-const API_URL = 'http://localhost:5000/api';
+const LOCAL_API_HOSTS = new Set(['localhost', '127.0.0.1']);
+const LOCAL_FRONTEND_DEV_PORTS = new Set(['3000', '4173', '5173']);
+const isLocalFrontendDevServer =
+  LOCAL_API_HOSTS.has(window.location.hostname) &&
+  LOCAL_FRONTEND_DEV_PORTS.has(window.location.port);
+const API_URL = isLocalFrontendDevServer
+  ? 'http://localhost:5000/api'
+  : `${window.location.origin}/api`;
 let token = localStorage.getItem('token');
 
 // Funções do Menu Mobile - Definir globalmente
