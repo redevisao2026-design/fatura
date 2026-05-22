@@ -75,7 +75,6 @@ const Auth = {
     this.updateUserDisplay();
     
     router.init();
-    this.showTrialExpiredBlockingModal();
   },
 
   updateUserDisplay() {
