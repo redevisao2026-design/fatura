@@ -2,14 +2,23 @@ const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
+const { Readable } = require('stream');
 const XLSX = require('xlsx');
 const { pool } = require('../database');
 const { ensureUploadBaseDir } = require('../upload-path');
+const {
+  deleteSupabaseObject,
+  fetchSupabaseObject,
+  hasSupabaseStorageConfig,
+  parseSupabaseRef,
+  uploadBufferToSupabase,
+} = require('../supabase-storage');
 const authMiddleware = require('../middleware/auth');
 const router = express.Router();
 
 // Diretório de uploads compatível com Vercel e execução local
 const uploadBaseDir = ensureUploadBaseDir();
+const useSupabaseStorage = hasSupabaseStorageConfig();
 
 function resolveUploadPath(fileName) {
   if (!fileName) return null;
@@ -27,10 +36,12 @@ function resolveUploadPath(fileName) {
   return candidates[0];
 }
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadBaseDir),
-  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
-});
+const storage = useSupabaseStorage
+  ? multer.memoryStorage()
+  : multer.diskStorage({
+      destination: (req, file, cb) => cb(null, uploadBaseDir),
+      filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname),
+    });
 
 const upload = multer({
   storage,
@@ -49,6 +60,86 @@ const uploadAnexos = multer({
     else cb(new Error('Apenas arquivos PDF são permitidos para anexos'));
   }
 });
+
+function getUploadedFileBuffer(file) {
+  if (useSupabaseStorage) {
+    return file.buffer;
+  }
+
+  return fs.readFileSync(file.path);
+}
+
+async function persistUploadedFile(file, folder) {
+  if (useSupabaseStorage) {
+    return uploadBufferToSupabase({
+      buffer: file.buffer,
+      originalName: file.originalname,
+      contentType: file.mimetype,
+      folder,
+    });
+  }
+
+  return file.filename;
+}
+
+async function deleteStoredAsset(storedPath) {
+  if (!storedPath) return;
+
+  const parsed = parseSupabaseRef(storedPath);
+  if (parsed) {
+    await deleteSupabaseObject(storedPath);
+    return;
+  }
+
+  const filePath = resolveUploadPath(storedPath);
+  if (filePath && fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+  }
+}
+
+async function sendStoredAsset(storedPath, res, fallbackName) {
+  const parsed = parseSupabaseRef(storedPath);
+
+  if (parsed) {
+    const response = await fetchSupabaseObject(storedPath);
+    if (!response) {
+      throw new Error('Supabase Storage nao configurado');
+    }
+
+    if (!response.ok) {
+      const responseText = await response.text();
+      const error = new Error(`Erro ao baixar arquivo do Supabase: ${response.status} ${responseText}`);
+      error.statusCode = response.status;
+      throw error;
+    }
+
+    const downloadName = path.basename(parsed.objectPath) || fallbackName || 'arquivo';
+    res.setHeader('Content-Type', response.headers.get('content-type') || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+
+    const contentLength = response.headers.get('content-length');
+    if (contentLength) {
+      res.setHeader('Content-Length', contentLength);
+    }
+
+    if (!response.body) {
+      const buffer = Buffer.from(await response.arrayBuffer());
+      res.send(buffer);
+      return true;
+    }
+
+    Readable.fromWeb(response.body).pipe(res);
+    return true;
+  }
+
+  const filePath = resolveUploadPath(storedPath);
+  if (!filePath || !fs.existsSync(filePath)) {
+    return false;
+  }
+
+  res.download(filePath, path.basename(filePath));
+  return true;
+}
 
 function getDataBrasilia() {
   const agora = new Date();
@@ -131,9 +222,10 @@ router.post('/upload', upload.single('arquivo'), async (req, res) => {
   if (tipoArquivo === 'csv' || tipoArquivo === 'xlsx') {
     const faturas = [];
     let ultimoClienteNome = '';
+    const fileBuffer = getUploadedFileBuffer(req.file);
 
     if (tipoArquivo === 'xlsx') {
-      const workbook = XLSX.readFile(req.file.path);
+      const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
       const dados = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: '' });
 
       for (let i = 1; i < dados.length; i++) {
@@ -159,7 +251,7 @@ router.post('/upload', upload.single('arquivo'), async (req, res) => {
         });
       }
     } else {
-      const linhas = fs.readFileSync(req.file.path, 'utf8').split('\n').filter(l => l.trim());
+      const linhas = fileBuffer.toString('utf8').replace(/^\uFEFF/, '').split('\n').filter(l => l.trim());
       for (let i = 1; i < linhas.length; i++) {
         const colunas = linhas[i].trim().split(';').map(c => c.trim());
         while (colunas.length > 0 && !colunas[colunas.length - 1]) colunas.pop();
@@ -174,6 +266,7 @@ router.post('/upload', upload.single('arquivo'), async (req, res) => {
     }
 
     try {
+      const arquivoPath = await persistUploadedFile(req.file, 'faturas/importacoes');
       const { rows: clientes } = await pool.query('SELECT id, nome, cpf_cnpj FROM clientes');
       let importadas = 0, clientesCriados = 0;
       const erros = [];
@@ -259,7 +352,7 @@ router.post('/upload', upload.single('arquivo'), async (req, res) => {
         await pool.query(
           `INSERT INTO faturas (cliente_id, empresa_id, numero_fatura, valor, data_vencimento, arquivo_path, tipo_arquivo, status)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-          [clienteId, empresa_id || null, numeroFatura, valorFatura, dataVencimento, req.file.filename, 'csv', status]
+          [clienteId, empresa_id || null, numeroFatura, valorFatura, dataVencimento, arquivoPath, 'csv', status]
         );
         importadas++;
       }
@@ -276,9 +369,10 @@ router.post('/upload', upload.single('arquivo'), async (req, res) => {
   } else {
     // PDF
     try {
+      const arquivoPath = await persistUploadedFile(req.file, 'faturas/importacoes');
       const { rows } = await pool.query(
         'INSERT INTO faturas (cliente_id, empresa_id, numero_fatura, valor, data_vencimento, arquivo_path, tipo_arquivo) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id',
-        [cliente_id, empresa_id || null, numero_fatura, valor, data_vencimento, req.file.filename, 'pdf']
+        [cliente_id, empresa_id || null, numero_fatura, valor, data_vencimento, arquivoPath, 'pdf']
       );
       res.json({ mensagem: 'Fatura enviada com sucesso', id: rows[0].id });
     } catch (err) {
@@ -293,10 +387,12 @@ router.get('/download/:id', async (req, res) => {
     const { rows } = await pool.query('SELECT * FROM faturas WHERE id = $1', [req.params.id]);
     const fatura = rows[0];
     if (!fatura || !fatura.arquivo_path) return res.status(404).json({ erro: 'Fatura não encontrada' });
-    const filePath = resolveUploadPath(fatura.arquivo_path);
-    if (!fs.existsSync(filePath)) return res.status(404).json({ erro: 'Arquivo da fatura não encontrado. Reenvie o anexo.' });
-    res.download(filePath);
+    const sent = await sendStoredAsset(fatura.arquivo_path, res, `fatura-${req.params.id}`);
+    if (!sent) return res.status(404).json({ erro: 'Arquivo da fatura não encontrado. Reenvie o anexo.' });
   } catch (err) {
+    if (err.statusCode) {
+      return res.status(err.statusCode).json({ erro: 'Erro ao baixar fatura' });
+    }
     res.status(500).json({ erro: 'Erro ao baixar fatura' });
   }
 });
@@ -307,10 +403,12 @@ router.get('/download/:id/boleto', async (req, res) => {
     const { rows } = await pool.query('SELECT boleto_path FROM faturas WHERE id = $1', [req.params.id]);
     const fatura = rows[0];
     if (!fatura || !fatura.boleto_path) return res.status(404).json({ erro: 'Boleto não encontrado' });
-    const filePath = resolveUploadPath(fatura.boleto_path);
-    if (!fs.existsSync(filePath)) return res.status(404).json({ erro: 'Arquivo de boleto ausente. Reenvie o anexo.' });
-    res.download(filePath);
+    const sent = await sendStoredAsset(fatura.boleto_path, res, `boleto-${req.params.id}`);
+    if (!sent) return res.status(404).json({ erro: 'Arquivo de boleto ausente. Reenvie o anexo.' });
   } catch (err) {
+    if (err.statusCode) {
+      return res.status(err.statusCode).json({ erro: 'Erro ao baixar boleto' });
+    }
     res.status(500).json({ erro: 'Erro ao baixar boleto' });
   }
 });
@@ -321,10 +419,12 @@ router.get('/download/:id/nota', async (req, res) => {
     const { rows } = await pool.query('SELECT nota_path FROM faturas WHERE id = $1', [req.params.id]);
     const fatura = rows[0];
     if (!fatura || !fatura.nota_path) return res.status(404).json({ erro: 'Nota fiscal não encontrada' });
-    const filePath = resolveUploadPath(fatura.nota_path);
-    if (!fs.existsSync(filePath)) return res.status(404).json({ erro: 'Arquivo de nota fiscal ausente. Reenvie o anexo.' });
-    res.download(filePath);
+    const sent = await sendStoredAsset(fatura.nota_path, res, `nota-${req.params.id}`);
+    if (!sent) return res.status(404).json({ erro: 'Arquivo de nota fiscal ausente. Reenvie o anexo.' });
   } catch (err) {
+    if (err.statusCode) {
+      return res.status(err.statusCode).json({ erro: 'Erro ao baixar nota' });
+    }
     res.status(500).json({ erro: 'Erro ao baixar nota' });
   }
 });
@@ -342,16 +442,16 @@ router.post('/:id/anexos', uploadAnexos.fields([
     if (!rows[0]) return res.status(404).json({ erro: 'Fatura não encontrada' });
 
     const fatura = rows[0];
-    const novoBoleto = req.files?.boleto?.[0]?.filename || null;
-    const novaNota = req.files?.nota?.[0]?.filename || null;
+    const novoBoletoArquivo = req.files?.boleto?.[0] || null;
+    const novaNotaArquivo = req.files?.nota?.[0] || null;
+    const novoBoleto = novoBoletoArquivo ? await persistUploadedFile(novoBoletoArquivo, `faturas/${id}/boleto`) : null;
+    const novaNota = novaNotaArquivo ? await persistUploadedFile(novaNotaArquivo, `faturas/${id}/nota`) : null;
 
     if (novoBoleto && fatura.boleto_path) {
-      const antigo = resolveUploadPath(fatura.boleto_path);
-      if (antigo && fs.existsSync(antigo)) fs.unlinkSync(antigo);
+      await deleteStoredAsset(fatura.boleto_path);
     }
     if (novaNota && fatura.nota_path) {
-      const antigo = resolveUploadPath(fatura.nota_path);
-      if (antigo && fs.existsSync(antigo)) fs.unlinkSync(antigo);
+      await deleteStoredAsset(fatura.nota_path);
     }
 
     await pool.query(
@@ -389,7 +489,9 @@ router.delete('/:id', async (req, res) => {
 
     const { arquivo_path, boleto_path, nota_path } = rows[0];
     for (const f of [arquivo_path, boleto_path, nota_path]) {
-      if (f) { const p = resolveUploadPath(f); if (p && fs.existsSync(p)) fs.unlinkSync(p); }
+      if (f) {
+        await deleteStoredAsset(f);
+      }
     }
 
     await pool.query('DELETE FROM faturas WHERE id = $1', [req.params.id]);

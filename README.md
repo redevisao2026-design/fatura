@@ -19,7 +19,7 @@ Sistema de gerenciamento de faturas para Visão Combustíveis.
 ### Backend
 - Node.js
 - Express
-- SQLite3
+- PostgreSQL (Supabase)
 - JWT para autenticação
 - Bcrypt para hash de senhas
 - Multer para upload de arquivos
@@ -54,6 +54,10 @@ Crie um arquivo `.env` na raiz do projeto:
 ```env
 PORT=5000
 JWT_SECRET=sua_chave_secreta_aqui
+DATABASE_URL=postgresql://postgres:senha@db.xxxx.supabase.co:5432/postgres
+SUPABASE_URL=https://xxxx.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=sua_chave_service_role_aqui
+SUPABASE_STORAGE_BUCKET=faturas
 ```
 
 4. Inicie o servidor:
@@ -111,7 +115,7 @@ O sistema suporta três formatos de arquivo:
 
 ### PDF
 - Upload direto do arquivo
-- Armazenado para referência futura
+- Armazenado no Supabase Storage para referência futura
 
 ## 🎨 Identidade Visual
 
