@@ -929,7 +929,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h3>✏️ Editar Fatura</h3>
-        <button class="modal-close" onclick="Faturas.closeEditModal()">&times;</button>
+        <button type="button" class="modal-close" aria-label="Fechar modal" title="Fechar modal" onclick="Faturas.closeEditModal()">&times;</button>
       </div>
       <div class="modal-body">
         <form id="form-editar-fatura" onsubmit="Faturas.submitEdit(event)">
@@ -981,7 +981,7 @@
     <div class="modal-content" style="max-width: 600px;">
       <div class="modal-header">
         <h3>Quitar fatura</h3>
-        <button class="modal-close" onclick="Faturas.closePagamentoModal()">&times;</button>
+        <button type="button" class="modal-close" aria-label="Fechar modal" title="Fechar modal" onclick="Faturas.closePagamentoModal()">&times;</button>
       </div>
       <div class="modal-body">
         <form id="form-pagamento" onsubmit="Faturas.submitPagamento(event)">
@@ -1087,7 +1087,7 @@
     <div class="modal-content" style="max-width: 520px;">
       <div class="modal-header">
         <h3>📎 Anexar boleto / nota fiscal</h3>
-        <button class="modal-close" onclick="Faturas.closeAnexos()">&times;</button>
+        <button type="button" class="modal-close" aria-label="Fechar modal" title="Fechar modal" onclick="Faturas.closeAnexos()">&times;</button>
       </div>
       <div class="modal-body">
         <form id="anexos-form">
@@ -1125,7 +1125,7 @@
     <div class="modal-content" style="max-width: 360px;">
       <div class="modal-header">
         <h3>🏷️ Alterar status</h3>
-        <button class="modal-close" onclick="Faturas.closeStatusModal()">&times;</button>
+        <button type="button" class="modal-close" aria-label="Fechar modal" title="Fechar modal" onclick="Faturas.closeStatusModal()">&times;</button>
       </div>
       <div class="modal-body">
         <form id="status-form" onsubmit="Faturas.submitStatus(event)">
@@ -1156,7 +1156,7 @@
     <div class="modal-content" style="max-width: 500px;">
       <div class="modal-header">
         <h3>👤 Meu Perfil</h3>
-        <button class="modal-close" onclick="closePerfilModal()">&times;</button>
+        <button type="button" class="modal-close" aria-label="Fechar modal" title="Fechar modal" onclick="closePerfilModal()">&times;</button>
       </div>
       <div class="modal-body">
         <form id="form-perfil" onsubmit="submitPerfil(event)">
@@ -1236,7 +1236,7 @@
     <div class="modal-content" style="max-width:520px; width:95%;">
       <div class="modal-header" style="border-bottom:1px solid #f3f4f6;">
         <h2 style="font-size:16px; font-weight:700; color:#111827;">Detalhe da Fatura</h2>
-        <button class="close" onclick="document.getElementById('rel-detalhe-modal').style.display='none'">&times;</button>
+        <button type="button" class="modal-close" aria-label="Fechar modal" title="Fechar modal" onclick="document.getElementById('rel-detalhe-modal').style.display='none'">&times;</button>
       </div>
       <div id="rel-detalhe-body" style="padding:16px 4px 4px;"></div>
     </div>
