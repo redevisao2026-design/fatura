@@ -1,42 +1,19 @@
 const bcrypt = require('bcryptjs');
-const db = require('./database');
+const { pool } = require('./database');
 
-// Criar usuário admin inicial se não existir nenhum usuário
 async function seedDatabase() {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT COUNT(*) as count FROM usuarios', async (err, row) => {
-      if (err) {
-        console.error('❌ Erro ao verificar usuários:', err);
-        reject(err);
-        return;
-      }
-
-      if (row.count === 0) {
-        console.log('📝 Criando usuário administrador inicial...');
-        
-        const senhaHash = await bcrypt.hash('123456', 10);
-        
-        db.run(
-          'INSERT INTO usuarios (nome, usuario, email, senha, is_admin) VALUES (?, ?, ?, ?, ?)',
-          ['Diogo Alves', 'daoliveira', null, senhaHash, 1],
-          function(err) {
-            if (err) {
-              console.error('❌ Erro ao criar usuário admin:', err);
-              reject(err);
-            } else {
-              console.log('✅ Usuário administrador criado com sucesso!');
-              console.log('   Usuário: daoliveira');
-              console.log('   Senha: 123456');
-              resolve();
-            }
-          }
-        );
-      } else {
-        console.log('✅ Banco de dados já possui usuários');
-        resolve();
-      }
-    });
-  });
+  const { rows } = await pool.query('SELECT COUNT(*) as count FROM usuarios');
+  if (parseInt(rows[0].count) === 0) {
+    console.log('📝 Criando usuário administrador inicial...');
+    const senhaHash = await bcrypt.hash('123456', 10);
+    await pool.query(
+      'INSERT INTO usuarios (nome, usuario, email, senha, is_admin) VALUES ($1, $2, $3, $4, $5)',
+      ['Diogo Alves', 'daoliveira', null, senhaHash, 1]
+    );
+    console.log('✅ Usuário administrador criado: daoliveira / 123456');
+  } else {
+    console.log('✅ Banco de dados já possui usuários');
+  }
 }
 
 module.exports = seedDatabase;

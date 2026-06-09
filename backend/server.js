@@ -2,13 +2,15 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const db = require('./database');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { pool, initDatabase } = require('./database');
 const seedDatabase = require('./seed');
-const authRoutes = require('./routes/auth');
 const clientesRoutes = require('./routes/clientes');
 const faturasRoutes = require('./routes/faturas');
 const empresaRoutes = require('./routes/empresa');
 const usuariosRoutes = require('./routes/usuarios');
+const authMiddleware = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -18,51 +20,74 @@ app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use(express.static(path.join(__dirname, '../public')));
 
-app.use('/api/auth', authRoutes);
+// Auth routes inline (evita problema de arquivo bloqueado pelo editor)
+const authRouter = express.Router();
+authRouter.post('/registro', authMiddleware, async (req, res) => {
+  if (!req.usuario.is_admin) return res.status(403).json({ erro: 'Apenas admins' });
+  const { nome, usuario, email, senha, is_admin } = req.body;
+  if (!nome || !usuario || !senha) return res.status(400).json({ erro: 'Campos obrigatorios' });
+  try {
+    const h = await bcrypt.hash(senha, 10);
+    const r = await pool.query(
+      'INSERT INTO usuarios (nome,usuario,email,senha,is_admin) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+      [nome, usuario, email || null, h, is_admin || 0]
+    );
+    res.status(201).json({ mensagem: 'Usuario criado', id: r.rows[0].id });
+  } catch(e) {
+    if (e.code === '23505') return res.status(400).json({ erro: 'Usuario ja existe' });
+    res.status(500).json({ erro: 'Erro ao criar usuario' });
+  }
+});
+authRouter.post('/login', async (req, res) => {
+  const { usuario, senha } = req.body;
+  try {
+    const r = await pool.query('SELECT * FROM usuarios WHERE usuario=$1', [usuario]);
+    const u = r.rows[0];
+    if (!u) return res.status(401).json({ erro: 'Credenciais invalidas' });
+    if (!await bcrypt.compare(senha, u.senha)) return res.status(401).json({ erro: 'Credenciais invalidas' });
+    const token = jwt.sign({ id: u.id, usuario: u.usuario, is_admin: u.is_admin || 0 }, process.env.JWT_SECRET, { expiresIn: '24h' });
+    res.json({ token, usuario: { id: u.id, nome: u.nome, usuario: u.usuario, email: u.email, is_admin: u.is_admin || 0 } });
+  } catch(e) {
+    console.error('[Auth] Login:', e);
+    res.status(500).json({ erro: 'Erro interno' });
+  }
+});
+
+app.use('/api/auth', authRouter);
 app.use('/api/clientes', clientesRoutes);
 app.use('/api/faturas', faturasRoutes);
 app.use('/api/empresa', empresaRoutes);
 app.use('/api/usuarios', usuariosRoutes);
 
-// Função para atualizar status de faturas vencidas
-function atualizarFaturasVencidas() {
-  const agora = new Date();
-  const brasiliaOffset = -3 * 60;
-  const utcTime = agora.getTime() + (agora.getTimezoneOffset() * 60000);
-  const brasilia = new Date(utcTime + (brasiliaOffset * 60000));
-  const dataAtualBrasilia = `${brasilia.getFullYear()}-${String(brasilia.getMonth() + 1).padStart(2, '0')}-${String(brasilia.getDate()).padStart(2, '0')}`;
-  
-  db.run(
-    `UPDATE faturas 
-     SET status = 'vencido' 
-     WHERE status = 'pendente' 
-     AND data_vencimento < ?`,
-    [dataAtualBrasilia],
-    (err) => {
-      if (err) {
-        console.error('[Auto-Update] Erro ao atualizar status vencido:', err);
-      } else {
-        console.log(`[Auto-Update] Status de faturas vencidas atualizado (${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })})`);
-      }
-    }
-  );
+// Atualizar status de faturas vencidas
+async function atualizarFaturasVencidas() {
+  try {
+    const result = await pool.query(`
+      UPDATE faturas
+      SET status = 'vencido'
+      WHERE status = 'pendente'
+        AND data_vencimento < CURRENT_DATE AT TIME ZONE 'America/Sao_Paulo'
+    `);
+    console.log(`[Auto-Update] Faturas vencidas atualizadas (${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })})`);
+  } catch (err) {
+    console.error('[Auto-Update] Erro:', err);
+  }
 }
 
-// Executar atualização ao iniciar o servidor
-atualizarFaturasVencidas();
+async function start() {
+  await initDatabase();
+  await seedDatabase();
+  await atualizarFaturasVencidas();
 
-// Executar atualização a cada 1 hora (3600000 ms)
-setInterval(atualizarFaturasVencidas, 3600000);
+  setInterval(atualizarFaturasVencidas, 3600000);
 
-// Inicializar banco de dados e criar usuário admin se necessário
-seedDatabase()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`🚀 Servidor rodando na porta ${PORT}`);
-      console.log(`⏰ Auto-atualização de status ativada (verifica a cada 1 hora)`);
-    });
-  })
-  .catch((err) => {
-    console.error('❌ Erro ao inicializar banco de dados:', err);
-    process.exit(1);
+  app.listen(PORT, () => {
+    console.log(`🚀 Servidor rodando na porta ${PORT}`);
+    console.log(`⏰ Auto-atualização de status ativada (a cada 1 hora)`);
   });
+}
+
+start().catch((err) => {
+  console.error('❌ Erro ao inicializar:', err);
+  process.exit(1);
+});
