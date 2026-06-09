@@ -16,8 +16,23 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use(express.static(path.join(__dirname, '../public')));
+
+// DB init lazy - ANTES de todas as rotas
+let dbReady = false;
+app.use(async (req, res, next) => {
+  if (dbReady) return next();
+  try {
+    console.log('[DB] DATABASE_URL set:', !!process.env.DATABASE_URL);
+    await initDatabase();
+    await seedDatabase();
+    dbReady = true;
+    next();
+  } catch(e) {
+    console.error('[DB] Init error:', e.message);
+    res.status(500).json({ erro: 'Erro ao inicializar banco de dados', detalhe: e.message });
+  }
+});
 
 // Auth inline
 const authRouter = express.Router();
@@ -44,28 +59,8 @@ authRouter.post('/login', async (req, res) => {
     const token = jwt.sign({ id: u.id, usuario: u.usuario, is_admin: u.is_admin || 0 }, process.env.JWT_SECRET, { expiresIn: '24h' });
     res.json({ token, usuario: { id: u.id, nome: u.nome, usuario: u.usuario, email: u.email, is_admin: u.is_admin || 0 } });
   } catch(e) {
-    console.error('[Auth]', e);
-    res.status(500).json({ erro: 'Erro interno' });
-  }
-});
-
-// Inicializar DB de forma lazy (serverless)
-let dbReady = false;
-async function ensureDb() {
-  if (!dbReady) {
-    await initDatabase();
-    await seedDatabase();
-    dbReady = true;
-  }
-}
-
-app.use(async (req, res, next) => {
-  try {
-    await ensureDb();
-    next();
-  } catch(e) {
-    console.error('DB init error:', e.message);
-    res.status(500).json({ erro: 'Erro ao inicializar banco de dados' });
+    console.error('[Auth] Login error:', e.message);
+    res.status(500).json({ erro: 'Erro interno', detalhe: e.message });
   }
 });
 
