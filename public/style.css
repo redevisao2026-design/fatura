@@ -205,6 +205,10 @@ nav {
 .stat-number {
   font-size: 48px;
   font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
   background: linear-gradient(135deg, var(--primary), var(--secondary));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -2196,11 +2200,13 @@ table td {
 .rel-card-vencidas .stat-number,
 .rel-card-receber .stat-number,
 .rel-card-quitadas .stat-number {
-  font-size: 28px;
-  word-break: break-word;
-  overflow-wrap: anywhere;
-  white-space: normal;
-  line-height: 1.2;
+  font-size: clamp(1.15rem, 1.8vw, 1.8rem);
+  line-height: 1;
+  letter-spacing: -0.04em;
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+  font-variant-numeric: tabular-nums;
   background: none;
   -webkit-text-fill-color: unset;
   -webkit-background-clip: unset;
@@ -2218,11 +2224,13 @@ table td {
   box-shadow: 0 8px 24px rgba(79,70,229,0.15) !important;
 }
 .rel-card-total .stat-number {
-  font-size: 28px;
-  word-break: break-word;
-  overflow-wrap: anywhere;
-  white-space: normal;
-  line-height: 1.2;
+  font-size: clamp(1.15rem, 1.8vw, 1.8rem);
+  line-height: 1;
+  letter-spacing: -0.04em;
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+  font-variant-numeric: tabular-nums;
   background: none;
   -webkit-text-fill-color: unset;
   background-clip: unset;
