@@ -15,6 +15,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.min.js"></script>
 </head>
 <body>
   <div id="app">
@@ -84,7 +88,7 @@
             <a href="#" onclick="openEmpresaModal(); closeMenu(); return false;">Empresa</a>
             <a href="#" onclick="openClientesModal(); closeMenu(); return false;">Clientes</a>
             <a href="#" onclick="openFaturasModal(); closeMenu(); return false;">Faturas</a>
-            <a href="#" onclick="router.navigate('consultar-prazo'); closeMenu(); return false;">Consultar a prazo</a>
+            <a href="#" onclick="router.navigate('relatorios'); closeMenu(); return false;">📊 Relatórios</a>
             <a href="#" id="nav-usuarios" class="hidden" onclick="router.navigate('usuarios'); closeMenu(); return false;">👤 Usuários</a>
             <button class="btn btn-logout btn-logout-mobile btn-danger" onclick="Auth.logout()">Sair</button>
           </div>
@@ -632,47 +636,112 @@
           </div>
         </div>
 
-        <div id="consultar-prazo-section" class="section hidden">
-          <h1>Consultar Notas a Prazo</h1>
-          <div class="card">
-            <h3>Filtros</h3>
-            <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 16px;">
-              <div class="form-group">
-                <label>Buscar Cliente (Nome ou CPF/CNPJ)</label>
-                <input type="text" id="filtro-cliente" placeholder="Digite o nome ou CPF/CNPJ do cliente">
+        <div id="relatorios-section" class="section hidden">
+          <div class="section-header">
+            <h1>📊 Relatórios</h1>
+          </div>
+
+          <!-- Filtros -->
+          <div class="card" style="margin-bottom: 24px;">
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px; align-items: end;">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label>🔍 Buscar Cliente</label>
+                <input type="text" id="rel-filtro-cliente" placeholder="Digite o nome do cliente...">
               </div>
-              <div class="form-group">
-                <label>Empresa</label>
-                <select id="filtro-empresa">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label>🏢 Empresa</label>
+                <select id="rel-filtro-empresa">
                   <option value="">Todas</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>Período</label>
-                <select id="filtro-periodo">
-                  <option value="">Todos</option>
-                  <option value="vencendo">Vencendo (7 dias)</option>
-                  <option value="mes">Este mês</option>
-                  <option value="vencidas">Vencidas</option>
                 </select>
               </div>
             </div>
           </div>
 
-          <div class="card">
-            <h3>Notas a Prazo</h3>
-            <div style="margin-bottom: 16px;">
-              <strong>Total: R$ <span id="total-prazo">0,00</span></strong> | 
-              <strong>Pendente: R$ <span id="total-pendente">0,00</span></strong> | 
-              <strong>Pago: R$ <span id="total-pago">0,00</span></strong>
+          <!-- Cards -->
+          <div class="stats">
+            <div class="stat-card rel-card-total" onclick="Relatorios.abrirModal('todas')" style="cursor:pointer;">
+              <h3><span style="color:#4f46e5;">●</span> Total Geral</h3>
+              <p id="rel-total-todas" class="stat-number">R$ 0,00</p>
+              <small id="rel-qtd-todas" style="color:var(--text-light); font-size:13px;">0 faturas</small>
+              <div style="margin-top:12px;">
+                <span style="font-size:12px; color:#4f46e5; font-weight:600;">Ver detalhes →</span>
+              </div>
+            </div>
+
+            <div class="stat-card rel-card-vencidas" onclick="Relatorios.abrirModal('vencidas')" style="cursor:pointer;">
+              <h3><span style="color:#e74c3c;">●</span> Faturas Vencidas</h3>
+              <p id="rel-total-vencidas" class="stat-number">R$ 0,00</p>
+              <small id="rel-qtd-vencidas" style="color:var(--text-light); font-size:13px;">0 faturas</small>
+              <div style="margin-top:12px;">
+                <span style="font-size:12px; color:#e74c3c; font-weight:600;">Ver detalhes →</span>
+              </div>
+            </div>
+
+            <div class="stat-card rel-card-receber" onclick="Relatorios.abrirModal('receber')" style="cursor:pointer;">
+              <h3><span style="color:#f39c12;">●</span> A Receber</h3>
+              <p id="rel-total-receber" class="stat-number">R$ 0,00</p>
+              <small id="rel-qtd-receber" style="color:var(--text-light); font-size:13px;">0 faturas</small>
+              <div style="margin-top:12px;">
+                <span style="font-size:12px; color:#f39c12; font-weight:600;">Ver detalhes →</span>
+              </div>
+            </div>
+
+            <div class="stat-card rel-card-quitadas" onclick="Relatorios.abrirModal('quitadas')" style="cursor:pointer;">
+              <h3><span style="color:#27ae60;">●</span> Quitadas</h3>
+              <p id="rel-total-quitadas" class="stat-number">R$ 0,00</p>
+              <small id="rel-qtd-quitadas" style="color:var(--text-light); font-size:13px;">0 faturas</small>
+              <div style="margin-top:12px;">
+                <span style="font-size:12px; color:#27ae60; font-weight:600;">Ver detalhes →</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal Relatório -->
+        <div id="relatorio-modal" class="modal">
+          <div class="modal-content" style="max-width: 950px; width: 95%;">
+            <div class="modal-header">
+              <h2 id="relatorio-modal-titulo">Faturas</h2>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <div style="position:relative;" id="rel-export-menu-wrap">
+                  <button class="btn btn-primary" onclick="Relatorios.toggleExportMenu()" style="padding:8px 16px; font-size:13px;">
+                    💾 Salvar ▾
+                  </button>
+                  <div id="rel-export-menu" style="display:none; position:absolute; right:0; top:110%; background:white; border:1px solid var(--border); border-radius:10px; box-shadow:0 4px 16px rgba(0,0,0,0.12); min-width:160px; z-index:999; overflow:hidden;">
+                    <button onclick="Relatorios.exportar('pdf')" style="width:100%; text-align:left; padding:11px 16px; border:none; background:none; cursor:pointer; font-size:14px; display:flex; align-items:center; gap:8px;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">📄 PDF</button>
+                    <button onclick="Relatorios.exportar('excel')" style="width:100%; text-align:left; padding:11px 16px; border:none; background:none; cursor:pointer; font-size:14px; display:flex; align-items:center; gap:8px;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">📊 Excel</button>
+                    <button onclick="Relatorios.exportar('docx')" style="width:100%; text-align:left; padding:11px 16px; border:none; background:none; cursor:pointer; font-size:14px; display:flex; align-items:center; gap:8px;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">📝 Word (DOCX)</button>
+                  </div>
+                </div>
+                <button class="close" onclick="Relatorios.fecharModal()">&times;</button>
+              </div>
+            </div>
+            <div class="modal-summary" style="display:flex; gap:20px; align-items:center; flex-wrap:wrap; background:#f8f9fa; border-radius:0; margin:0; padding:12px 24px;">
+              <div>
+                <span style="font-size:12px; color:var(--text-light);">Total</span>
+                <p id="relatorio-modal-total" style="font-size:22px; font-weight:700; margin:0; color:var(--primary);">R$ 0,00</p>
+              </div>
+              <div style="width:1px; background:#ddd; height:36px; flex-shrink:0;"></div>
+              <div>
+                <span style="font-size:12px; color:var(--text-light);">Quantidade</span>
+                <p id="relatorio-modal-qtd" style="font-size:22px; font-weight:700; margin:0; color:var(--text);">0</p>
+              </div>
+              <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+                <label style="font-size:12px; color:var(--text-light); white-space:nowrap;">🏢 Empresa</label>
+                <select id="rel-modal-empresa" onchange="Relatorios.filtrarModal()" style="height:36px; font-size:13px; border:1px solid var(--border); border-radius:8px; padding:0 10px; background:white; min-width:180px;">
+                  <option value="">Todas</option>
+                </select>
+              </div>
             </div>
             <div class="table-wrapper">
-              <table id="consultar-prazo-table">
+              <table id="relatorio-modal-table">
                 <thead>
                   <tr>
                     <th>Cliente</th>
+                    <th>Número</th>
                     <th>Vencimento</th>
                     <th>Valor</th>
+                    <th>Status</th>
                   </tr>
                 </thead>
                 <tbody></tbody>
@@ -1157,8 +1226,21 @@
   <!-- Cache bust para garantir versão mais recente das regras de filtragem -->
   <script src="js/modules/faturas.js?v=20260328a"></script>
   <script src="js/modules/consultar-prazo.js"></script>
+  <script src="js/modules/relatorios.js"></script>
   <script src="js/modules/usuarios.js"></script>
   <script src="js/router.js"></script>
   <script src="js/modules/auth.js?v=20260508b"></script>
+
+  <!-- Modal Detalhe Fatura (fora do fluxo para z-index correto) -->
+  <div id="rel-detalhe-modal" class="modal">
+    <div class="modal-content" style="max-width:520px; width:95%;">
+      <div class="modal-header" style="border-bottom:1px solid #f3f4f6;">
+        <h2 style="font-size:16px; font-weight:700; color:#111827;">Detalhe da Fatura</h2>
+        <button class="close" onclick="document.getElementById('rel-detalhe-modal').style.display='none'">&times;</button>
+      </div>
+      <div id="rel-detalhe-body" style="padding:16px 4px 4px;"></div>
+    </div>
+  </div>
+
 </body>
 </html>

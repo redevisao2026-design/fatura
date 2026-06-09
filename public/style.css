@@ -2129,3 +2129,113 @@ table td {
     font-size: 18px;
   }
 }
+
+/* ===== RELATÓRIOS ===== */
+.rel-card-vencidas::before {
+  background: linear-gradient(90deg, #e74c3c, #c0392b) !important;
+}
+.rel-card-receber::before {
+  background: linear-gradient(90deg, #f39c12, #e67e22) !important;
+}
+.rel-card-quitadas::before {
+  background: linear-gradient(90deg, #27ae60, #1e8449) !important;
+}
+.rel-card-vencidas:hover {
+  border-color: #e74c3c !important;
+  box-shadow: 0 8px 24px rgba(231,76,60,0.15) !important;
+}
+.rel-card-receber:hover {
+  border-color: #f39c12 !important;
+  box-shadow: 0 8px 24px rgba(243,156,18,0.15) !important;
+}
+.rel-card-quitadas:hover {
+  border-color: #27ae60 !important;
+  box-shadow: 0 8px 24px rgba(39,174,96,0.15) !important;
+}
+.stat-card {
+  border: 2px solid transparent;
+}
+
+/* Stat number nos cards de relatório */
+.rel-card-vencidas .stat-number,
+.rel-card-receber .stat-number,
+.rel-card-quitadas .stat-number {
+  font-size: 28px;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  line-height: 1.2;
+  background: none;
+  -webkit-text-fill-color: unset;
+  -webkit-background-clip: unset;
+  background-clip: unset;
+}
+.rel-card-vencidas .stat-number { color: #e74c3c; }
+.rel-card-receber .stat-number  { color: #f39c12; }
+.rel-card-quitadas .stat-number { color: #27ae60; }
+
+.rel-card-total::before {
+  background: linear-gradient(90deg, var(--primary), var(--secondary)) !important;
+}
+.rel-card-total:hover {
+  border-color: var(--primary) !important;
+  box-shadow: 0 8px 24px rgba(79,70,229,0.15) !important;
+}
+.rel-card-total .stat-number {
+  font-size: 28px;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  line-height: 1.2;
+  background: none;
+  -webkit-text-fill-color: unset;
+  background-clip: unset;
+  color: #4f46e5;
+}
+
+/* Modal relatório com header fixo */
+#relatorio-modal .modal-content {
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  overflow: hidden;
+}
+#relatorio-modal .modal-header {
+  position: sticky;
+  top: 0;
+  background: white;
+  z-index: 10;
+  border-bottom: 1px solid var(--border);
+  border-radius: 16px 16px 0 0;
+  flex-shrink: 0;
+}
+#relatorio-modal .modal-summary {
+  flex-shrink: 0;
+  background: white;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border);
+}
+#relatorio-modal .table-wrapper {
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Modal detalhe fatura - deve sobrepor o modal de relatório */
+#rel-detalhe-modal {
+  position: fixed !important;
+  z-index: 9999 !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: rgba(0,0,0,0.6) !important;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+#rel-detalhe-modal .modal-content {
+  max-height: 85vh;
+  overflow-y: auto;
+  position: relative;
+  z-index: 10000;
+}
