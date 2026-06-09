@@ -93,9 +93,13 @@ async function atualizarFaturasVencidas() {
 async function bootstrapDatabase() {
   if (!bootstrapPromise) {
     bootstrapPromise = (async () => {
+      console.log('[Bootstrap] Inicializando banco de dados...');
       await initDatabase();
+      console.log('[Bootstrap] Estrutura do banco verificada');
       await seedDatabase();
+      console.log('[Bootstrap] Seed inicial verificado');
       await atualizarFaturasVencidas();
+      console.log('[Bootstrap] Banco pronto para uso');
     })().catch((err) => {
       bootstrapPromise = null;
       throw err;

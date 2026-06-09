@@ -1,15 +1,20 @@
 const { Pool } = require('pg');
 
+const isVercel = !!process.env.VERCEL;
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : { rejectUnauthorized: false }
+  ssl: { rejectUnauthorized: false },
+  max: isVercel ? 1 : 10,
+  connectionTimeoutMillis: 5000,
+  idleTimeoutMillis: isVercel ? 5000 : 30000,
+  allowExitOnIdle: true,
 });
 
 pool.on('error', (err) => {
-  console.error('❌ Erro inesperado no pool do PostgreSQL:', err);
+  console.error('[PostgreSQL] Erro inesperado no pool:', err);
 });
 
-// Inicializar tabelas
 async function initDatabase() {
   const client = await pool.connect();
   try {
@@ -74,7 +79,7 @@ async function initDatabase() {
       )
     `);
 
-    console.log('✅ Banco de dados PostgreSQL inicializado');
+    console.log('[PostgreSQL] Banco de dados inicializado');
   } finally {
     client.release();
   }
