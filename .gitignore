@@ -12,3 +12,6 @@ project.json
 project-info.json
 vercel-deploy.json
 vercel-env.json
+check-logs.js
+check-runtime.js
+check-vercel.js

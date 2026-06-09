@@ -54,11 +54,13 @@ Crie um arquivo `.env` na raiz do projeto:
 ```env
 PORT=5000
 JWT_SECRET=sua_chave_secreta_aqui
-DATABASE_URL=postgresql://postgres:senha@db.xxxx.supabase.co:5432/postgres
+DATABASE_URL=postgresql://postgres.fcbvfnrlowutlebjzfsz:[YOUR-PASSWORD]@aws-1-us-east-2.pooler.supabase.com:6543/postgres
 SUPABASE_URL=https://xxxx.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=sua_chave_service_role_aqui
 SUPABASE_STORAGE_BUCKET=faturas
 ```
+
+Na Vercel, use a `DATABASE_URL` do pooler do Supabase em `transaction mode`.
 
 4. Inicie o servidor:
 ```bash
