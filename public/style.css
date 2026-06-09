@@ -1145,6 +1145,8 @@ table td {
 
 /* Modal Styles */
 .modal {
+  --modal-max-width: 1100px;
+  --modal-max-height: calc(100vh - 80px);
   display: none;
   position: fixed;
   z-index: 5000;
@@ -1167,9 +1169,9 @@ table td {
   background-color: white;
   border-radius: 16px;
   padding: 0;
-  width: 98%;
-  max-width: 1100px;
-  max-height: calc(100vh - 80px);
+  width: 95vw;
+  max-width: var(--modal-max-width);
+  max-height: var(--modal-max-height);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
   animation: slideUp 0.3s ease;
   overflow: hidden;
@@ -1179,12 +1181,47 @@ table td {
 .trial-block-modal {
   z-index: 30000;
   background: rgba(15, 23, 42, 0.78);
+  --modal-max-width: 560px;
 }
 
 .trial-block-modal-content {
-  max-width: 560px;
   border: 1px solid #fecaca;
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+}
+
+#relatorio-modal {
+  --modal-max-width: 950px;
+  --modal-max-height: 90vh;
+}
+
+#empresa-modal,
+#clientes-modal,
+#faturas-modal {
+  --modal-max-width: 560px;
+}
+
+#editar-fatura-modal {
+  --modal-max-width: 600px;
+}
+
+#pagamento-modal {
+  --modal-max-width: 600px;
+}
+
+#anexos-fatura-modal {
+  --modal-max-width: 520px;
+}
+
+#status-modal {
+  --modal-max-width: 360px;
+}
+
+#perfil-modal {
+  --modal-max-width: 500px;
+}
+
+#haver-modal {
+  --modal-max-width: 1100px;
 }
 
 #trial-expired-modal .modal-header {
@@ -1227,11 +1264,6 @@ table td {
 #haver-modal .form-group textarea {
   height: auto;
   min-height: 88px;
-}
-
-#haver-modal .modal-content {
-  width: 98% !important;
-  max-width: 1100px !important;
 }
 
 #haver-modal .modal-header {
@@ -2267,6 +2299,8 @@ table td {
 
 /* Modal detalhe fatura - deve sobrepor o modal de relatório */
 #rel-detalhe-modal {
+  --modal-max-width: 520px;
+  --modal-max-height: 85vh;
   position: fixed !important;
   z-index: 9999 !important;
   top: 0 !important;
@@ -2279,7 +2313,6 @@ table td {
   justify-content: center;
 }
 #rel-detalhe-modal .modal-content {
-  max-height: 85vh;
   overflow-y: auto;
   position: relative;
   z-index: 10000;
