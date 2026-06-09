@@ -1154,12 +1154,13 @@ table td {
   padding: 32px 12px;
   background-color: rgba(0, 0, 0, 0.5);
   animation: fadeIn 0.3s ease;
+  justify-content: center;
+  align-items: center;
+  overflow-y: auto;
 }
 
 .modal.show {
   display: flex;
-  justify-content: center;
-  align-items: center;
 }
 
 .modal-content {
