@@ -2,8 +2,33 @@ const { Pool } = require('pg');
 
 const isVercel = !!process.env.VERCEL;
 
+function validateSupabaseDatabaseUrl(connectionString) {
+  if (!connectionString) {
+    throw new Error('DATABASE_URL nao configurado. Use a string de conexao do Supabase.');
+  }
+
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(connectionString);
+  } catch {
+    throw new Error('DATABASE_URL invalido. Use uma URL PostgreSQL valida do Supabase.');
+  }
+
+  const host = parsedUrl.hostname.toLowerCase();
+  const allowedHost = host.endsWith('.supabase.co') || host.endsWith('.pooler.supabase.com');
+  const localHost = host === 'localhost' || host === '127.0.0.1' || host === '::1';
+
+  if (!allowedHost || localHost) {
+    throw new Error(
+      `DATABASE_URL deve apontar para o Supabase. Host atual: ${parsedUrl.hostname}`
+    );
+  }
+
+  return connectionString;
+}
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: validateSupabaseDatabaseUrl(process.env.DATABASE_URL),
   ssl: { rejectUnauthorized: false },
   max: isVercel ? 1 : 10,
   connectionTimeoutMillis: 5000,

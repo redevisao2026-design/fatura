@@ -62,6 +62,9 @@ SUPABASE_STORAGE_BUCKET=faturas
 
 Na Vercel, use a `DATABASE_URL` do pooler do Supabase em `transaction mode`.
 
+O backend nao sobe se a `DATABASE_URL` nao apontar para o Supabase. Isso evita
+qualquer escrita acidental em banco local.
+
 4. Inicie o servidor:
 ```bash
 npm start
