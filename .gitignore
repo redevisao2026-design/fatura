@@ -6,3 +6,9 @@ database/
 build/
 dist/
 .DS_Store
+
+# Local deployment/agent metadata
+project.json
+project-info.json
+vercel-deploy.json
+vercel-env.json

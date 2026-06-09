@@ -52,10 +52,10 @@ class Router {
         navIndex: 3,
         onLoad: () => Faturas.loadHaver()
       },
-      'consultar-prazo': {
-        element: 'consultar-prazo-section',
+      'relatorios': {
+        element: 'relatorios-section',
         navIndex: 4,
-        onLoad: () => ConsultarPrazo.load()
+        onLoad: () => Relatorios.load()
       },
       'usuarios': {
         element: 'usuarios-section',
