@@ -4,24 +4,22 @@ const fs = require('fs');
 const path = require('path');
 const XLSX = require('xlsx');
 const { pool } = require('../database');
+const { ensureUploadBaseDir } = require('../upload-path');
 const authMiddleware = require('../middleware/auth');
 const router = express.Router();
 
-// Diretório de uploads
-const uploadBaseDir = (process.env.NODE_ENV === 'production' && fs.existsSync('/app/data'))
-  ? '/app/data/uploads'
-  : path.join(__dirname, '../../uploads');
-
-if (!fs.existsSync(uploadBaseDir)) fs.mkdirSync(uploadBaseDir, { recursive: true });
+// Diretório de uploads compatível com Vercel e execução local
+const uploadBaseDir = ensureUploadBaseDir();
 
 function resolveUploadPath(fileName) {
   if (!fileName) return null;
   const base = path.basename(fileName);
+  const legacyUploadDir = path.join(__dirname, '../../uploads');
   const candidates = [
     path.join(uploadBaseDir, base),
     path.join(uploadBaseDir, fileName),
-    path.join(__dirname, '../../uploads', base),
-    path.join(__dirname, '../../uploads', fileName)
+    path.join(legacyUploadDir, base),
+    path.join(legacyUploadDir, fileName)
   ];
   for (const c of candidates) {
     if (fs.existsSync(c)) return c;

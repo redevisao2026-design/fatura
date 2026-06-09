@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { pool, initDatabase } = require('./database');
 const seedDatabase = require('./seed');
+const { ensureUploadBaseDir } = require('./upload-path');
 const clientesRoutes = require('./routes/clientes');
 const faturasRoutes = require('./routes/faturas');
 const empresaRoutes = require('./routes/empresa');
@@ -14,10 +15,13 @@ const authMiddleware = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
+const isVercel = !!process.env.VERCEL;
+const uploadBaseDir = ensureUploadBaseDir();
+let bootstrapPromise = null;
 
 app.use(cors());
 app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/uploads', express.static(uploadBaseDir));
 app.use(express.static(path.join(__dirname, '../public')));
 
 // Auth routes inline (evita problema de arquivo bloqueado pelo editor)
@@ -53,6 +57,18 @@ authRouter.post('/login', async (req, res) => {
   }
 });
 
+if (isVercel) {
+  app.use('/api', async (req, res, next) => {
+    try {
+      await bootstrapDatabase();
+      next();
+    } catch (err) {
+      console.error('❌ Erro ao inicializar banco de dados:', err);
+      res.status(500).json({ erro: 'Erro ao inicializar banco de dados' });
+    }
+  });
+}
+
 app.use('/api/auth', authRouter);
 app.use('/api/clientes', clientesRoutes);
 app.use('/api/faturas', faturasRoutes);
@@ -74,10 +90,23 @@ async function atualizarFaturasVencidas() {
   }
 }
 
+async function bootstrapDatabase() {
+  if (!bootstrapPromise) {
+    bootstrapPromise = (async () => {
+      await initDatabase();
+      await seedDatabase();
+      await atualizarFaturasVencidas();
+    })().catch((err) => {
+      bootstrapPromise = null;
+      throw err;
+    });
+  }
+
+  return bootstrapPromise;
+}
+
 async function start() {
-  await initDatabase();
-  await seedDatabase();
-  await atualizarFaturasVencidas();
+  await bootstrapDatabase();
 
   setInterval(atualizarFaturasVencidas, 3600000);
 
@@ -87,7 +116,11 @@ async function start() {
   });
 }
 
-start().catch((err) => {
-  console.error('❌ Erro ao inicializar:', err);
-  process.exit(1);
-});
+if (require.main === module && !isVercel) {
+  start().catch((err) => {
+    console.error('❌ Erro ao inicializar:', err);
+    process.exit(1);
+  });
+}
+
+module.exports = app;
