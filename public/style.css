@@ -1145,8 +1145,8 @@ table td {
 
 /* Modal Styles */
 .modal {
-  --modal-max-width: 950px;
-  --modal-max-height: 90vh;
+  --modal-max-width: 1100px;
+  --modal-max-height: calc(100vh - 80px);
   display: none;
   position: fixed;
   z-index: 5000;
@@ -1169,7 +1169,7 @@ table td {
   background-color: white;
   border-radius: 16px;
   padding: 0;
-  width: 95vw;
+  width: 98%;
   max-width: var(--modal-max-width);
   max-height: var(--modal-max-height);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
@@ -2269,7 +2269,9 @@ table td {
 #relatorio-modal .modal-content {
   display: flex;
   flex-direction: column;
-  max-height: 90vh;
+  width: 100%;
+  max-width: none;
+  max-height: calc(100vh - 48px);
   overflow: hidden;
 }
 #relatorio-modal .modal-header {
