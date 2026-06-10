@@ -1145,8 +1145,8 @@ table td {
 
 /* Modal Styles */
 .modal {
-  --modal-max-width: 1100px;
-  --modal-max-height: calc(100vh - 80px);
+  --modal-max-width: 950px;
+  --modal-max-height: 90vh;
   display: none;
   position: fixed;
   z-index: 5000;
@@ -1187,11 +1187,6 @@ table td {
 .trial-block-modal-content {
   border: 1px solid #fecaca;
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
-}
-
-#relatorio-modal {
-  --modal-max-width: 950px;
-  --modal-max-height: 90vh;
 }
 
 #empresa-modal,
