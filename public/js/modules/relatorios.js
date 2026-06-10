@@ -202,6 +202,7 @@ const Relatorios = {
   exportar(formato) {
     document.getElementById('rel-export-menu').style.display = 'none';
     const titulo = document.getElementById('relatorio-modal-titulo').textContent;
+    const tituloExport = this._tituloExportacao(titulo);
     const total  = document.getElementById('relatorio-modal-total').textContent;
     const qtd    = document.getElementById('relatorio-modal-qtd').textContent;
 
@@ -221,9 +222,9 @@ const Relatorios = {
 
     const headers = ['Cliente', 'Numero', 'Vencimento', 'Valor', 'Status'];
 
-    if (formato === 'pdf')   this._exportPDF(titulo, total, qtd, headers, rows);
+    if (formato === 'pdf')   this._exportPDF(tituloExport, total, qtd, headers, rows);
     if (formato === 'excel') this._exportExcel(titulo, headers, rows);
-    if (formato === 'docx')  this._exportDOCX(titulo, total, qtd, headers, rows);
+    if (formato === 'docx')  this._exportDOCX(tituloExport, total, qtd, headers, rows);
   },
 
   _exportPDF(titulo, total, qtd, headers, rows) {
@@ -243,7 +244,7 @@ const Relatorios = {
       alternateRowStyles: { fillColor: [248, 249, 250] },
       margin: { left: 14, right: 14 }
     });
-    doc.save(titulo.replace(/[^\w\s]/g, '').trim().replace(/\s+/g, '_') + '.pdf');
+    doc.save(this._nomeArquivoExportacao(titulo) + '.pdf');
   },
 
   _exportExcel(titulo, headers, rows) {
@@ -251,7 +252,7 @@ const Relatorios = {
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
     ws['!cols'] = [{ wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 16 }, { wch: 12 }];
     XLSX.utils.book_append_sheet(wb, ws, 'Relatorio');
-    XLSX.writeFile(wb, titulo.replace(/[^\w\s]/g, '').trim().replace(/\s+/g, '_') + '.xlsx');
+    XLSX.writeFile(wb, this._nomeArquivoExportacao(titulo) + '.xlsx');
   },
 
   async _exportDOCX(titulo, total, qtd, headers, rows) {
@@ -287,8 +288,25 @@ const Relatorios = {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = titulo.replace(/[^\w\s]/g, '').trim().replace(/\s+/g, '_') + '.docx';
+    a.download = this._nomeArquivoExportacao(titulo) + '.docx';
     a.click();
     URL.revokeObjectURL(url);
+  },
+
+  _tituloExportacao(titulo) {
+    return String(titulo || '')
+      .replace(/^[^\p{L}\p{N}]+/u, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  },
+
+  _nomeArquivoExportacao(titulo) {
+    return String(titulo || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/^[^\p{L}\p{N}]+/u, '')
+      .replace(/[^\w\s-]/g, '')
+      .trim()
+      .replace(/\s+/g, '_');
   }
 };
