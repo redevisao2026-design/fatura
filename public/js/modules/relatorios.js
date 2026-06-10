@@ -240,27 +240,32 @@ const Relatorios = {
     const reportTitle = String(titulo || '').trim() || 'Relatório';
 
     const drawHeader = (pageNumber) => {
+      const logoSize = 32;
+      const brandingX = 10;
+      const brandingY = 10;
+      const brandingTextX = brandingX + logoSize + 10;
+
       doc.setFillColor(79, 70, 229);
       doc.rect(0, 0, pageWidth, 8, 'F');
 
       if (logoDataUrl) {
-        doc.addImage(logoDataUrl, 'PNG', 0, 12, 12, 12);
+        doc.addImage(logoDataUrl, 'PNG', brandingX, brandingY, logoSize, logoSize);
       }
 
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(31, 41, 55);
       doc.setFontSize(18);
-      doc.text('Visão Faturas', marginX, 21);
+      doc.text('Visão Faturas', brandingTextX, 21);
 
       doc.setTextColor(79, 70, 229);
       doc.setFontSize(13);
-      doc.text(reportTitle, marginX, 29);
+      doc.text(reportTitle, brandingTextX, 29);
 
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(107, 114, 128);
       doc.setFontSize(9);
-      doc.text(`Total: ${total}   |   ${qtd}`, marginX, 36);
-      doc.text(`Gerado em: ${generatedAt}`, marginX, 42);
+      doc.text(`Total: ${total}   |   ${qtd}`, brandingTextX, 36);
+      doc.text(`Gerado em: ${generatedAt}`, brandingTextX, 42);
 
       doc.setDrawColor(229, 231, 235);
       doc.setLineWidth(0.3);
