@@ -3,6 +3,8 @@ const Relatorios = {
   empresas: [],
   _debounce: null,
   _modalLista: [],
+  _reportLogoDataUrl: null,
+  _reportLogoPromise: null,
 
   async load() {
     try {
@@ -199,7 +201,7 @@ const Relatorios = {
     }, 10);
   },
 
-  exportar(formato) {
+  async exportar(formato) {
     document.getElementById('rel-export-menu').style.display = 'none';
     const titulo = document.getElementById('relatorio-modal-titulo').textContent;
     const tituloExport = this._tituloExportacao(titulo);
@@ -222,22 +224,28 @@ const Relatorios = {
 
     const headers = ['Cliente', 'Numero', 'Vencimento', 'Valor', 'Status'];
 
-    if (formato === 'pdf')   this._exportPDF(tituloExport, total, qtd, headers, rows);
+    if (formato === 'pdf')   await this._exportPDF(tituloExport, total, qtd, headers, rows);
     if (formato === 'excel') this._exportExcel(titulo, headers, rows);
     if (formato === 'docx')  this._exportDOCX(tituloExport, total, qtd, headers, rows);
   },
 
-  _exportPDF(titulo, total, qtd, headers, rows) {
+  async _exportPDF(titulo, total, qtd, headers, rows) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: 'landscape' });
     const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
     const marginX = 14;
     const generatedAt = new Date().toLocaleString('pt-BR');
+    const logoDataUrl = await this._getReportLogoDataUrl();
     const reportTitle = String(titulo || '').trim() || 'Relatório';
 
     const drawHeader = (pageNumber) => {
       doc.setFillColor(79, 70, 229);
       doc.rect(0, 0, pageWidth, 8, 'F');
+
+      if (logoDataUrl) {
+        doc.addImage(logoDataUrl, 'PNG', 0, 12, 12, 12);
+      }
 
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(31, 41, 55);
@@ -254,13 +262,20 @@ const Relatorios = {
       doc.text(`Total: ${total}   |   ${qtd}`, marginX, 36);
       doc.text(`Gerado em: ${generatedAt}`, marginX, 42);
 
-      doc.setFontSize(9);
-      doc.setTextColor(79, 70, 229);
-      doc.text(`Página ${pageNumber}`, pageWidth - marginX, 21, { align: 'right' });
-
       doc.setDrawColor(229, 231, 235);
       doc.setLineWidth(0.3);
       doc.line(marginX, 46, pageWidth - marginX, 46);
+
+      const footerLineY = pageHeight - 12;
+      const footerTextY = pageHeight - 5;
+
+      doc.line(marginX, footerLineY, pageWidth - marginX, footerLineY);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(107, 114, 128);
+      doc.setFontSize(8);
+      doc.text('Gerado automaticamente pelo sistema', marginX, footerTextY);
+      doc.setTextColor(79, 70, 229);
+      doc.text(`Página ${pageNumber}`, pageWidth - marginX, footerTextY, { align: 'right' });
     };
 
     doc.setProperties({
@@ -273,7 +288,7 @@ const Relatorios = {
       head: [headers],
       body: rows,
       startY: 52,
-      margin: { top: 52, left: marginX, right: marginX, bottom: 16 },
+      margin: { top: 52, left: marginX, right: marginX, bottom: 20 },
       styles: { fontSize: 9, cellPadding: 3 },
       headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
       alternateRowStyles: { fillColor: [248, 249, 250] },
@@ -283,6 +298,36 @@ const Relatorios = {
     });
 
     doc.save(this._nomeArquivoExportacao(reportTitle) + '.pdf');
+  },
+
+  async _getReportLogoDataUrl() {
+    if (this._reportLogoDataUrl) return this._reportLogoDataUrl;
+
+    if (!this._reportLogoPromise) {
+      this._reportLogoPromise = fetch('/images/logo-visao.png')
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Logo indisponível (${response.status})`);
+          }
+          return response.blob();
+        })
+        .then(blob => new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        }))
+        .then(dataUrl => {
+          this._reportLogoDataUrl = dataUrl;
+          return dataUrl;
+        })
+        .catch(error => {
+          console.warn('Não foi possível carregar a logo do relatório:', error);
+          return null;
+        });
+    }
+
+    return this._reportLogoPromise;
   },
 
   _exportExcel(titulo, headers, rows) {
