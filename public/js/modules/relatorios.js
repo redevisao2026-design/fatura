@@ -230,21 +230,59 @@ const Relatorios = {
   _exportPDF(titulo, total, qtd, headers, rows) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: 'landscape' });
-    doc.setFontSize(16);
-    doc.setTextColor(40, 40, 40);
-    doc.text(titulo, 14, 18);
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text('Total: ' + total + '   |   ' + qtd, 14, 26);
-    doc.text('Gerado em: ' + new Date().toLocaleString('pt-BR'), 14, 32);
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const marginX = 14;
+    const generatedAt = new Date().toLocaleString('pt-BR');
+    const reportTitle = String(titulo || '').trim() || 'Relatório';
+
+    const drawHeader = (pageNumber) => {
+      doc.setFillColor(79, 70, 229);
+      doc.rect(0, 0, pageWidth, 8, 'F');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(31, 41, 55);
+      doc.setFontSize(18);
+      doc.text('Visão Faturas', marginX, 21);
+
+      doc.setTextColor(79, 70, 229);
+      doc.setFontSize(13);
+      doc.text(reportTitle, marginX, 29);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(107, 114, 128);
+      doc.setFontSize(9);
+      doc.text(`Total: ${total}   |   ${qtd}`, marginX, 36);
+      doc.text(`Gerado em: ${generatedAt}`, marginX, 42);
+
+      doc.setFontSize(9);
+      doc.setTextColor(79, 70, 229);
+      doc.text(`Página ${pageNumber}`, pageWidth - marginX, 21, { align: 'right' });
+
+      doc.setDrawColor(229, 231, 235);
+      doc.setLineWidth(0.3);
+      doc.line(marginX, 46, pageWidth - marginX, 46);
+    };
+
+    doc.setProperties({
+      title: reportTitle,
+      subject: 'Relatório de Faturas',
+      author: 'Visão Faturas',
+    });
+
     doc.autoTable({
-      head: [headers], body: rows, startY: 38,
+      head: [headers],
+      body: rows,
+      startY: 52,
+      margin: { top: 52, left: marginX, right: marginX, bottom: 16 },
       styles: { fontSize: 9, cellPadding: 3 },
       headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
       alternateRowStyles: { fillColor: [248, 249, 250] },
-      margin: { left: 14, right: 14 }
+      didDrawPage: (data) => {
+        drawHeader(data.pageNumber);
+      }
     });
-    doc.save(this._nomeArquivoExportacao(titulo) + '.pdf');
+
+    doc.save(this._nomeArquivoExportacao(reportTitle) + '.pdf');
   },
 
   _exportExcel(titulo, headers, rows) {
