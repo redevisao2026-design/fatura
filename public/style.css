@@ -2271,7 +2271,8 @@ table td {
   flex-direction: column;
   width: 100%;
   max-width: none;
-  max-height: calc(100vh - 48px);
+  height: 90vh;
+  max-height: 90vh;
   overflow: hidden;
 }
 #relatorio-modal .modal-header {
@@ -2292,6 +2293,7 @@ table td {
 #relatorio-modal .table-wrapper {
   overflow-y: auto;
   flex: 1;
+  min-height: 0;
 }
 
 /* Modal detalhe fatura - deve sobrepor o modal de relatório */
