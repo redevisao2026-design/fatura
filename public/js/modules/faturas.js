@@ -849,7 +849,6 @@ const Faturas = {
     const valorPago = parseFloat(document.getElementById('pag-valor-pago').value) || 0;
     const valorOriginal = parseFloat(document.getElementById('pag-valor-original').value) || 0;
     const acao = document.getElementById('pag-acao').value || 'normal';
-    const diferenca = valorOriginal - (valorPago + valorHaver);
     
     // Validar conta financeira
     if (!contaFinanceira) {
@@ -869,25 +868,25 @@ const Faturas = {
       if (valorPago + valorHaver > valorOriginal) {
         if (acao === 'juros') {
           // Trata excedente como juros: marca pago sem haver
-          await api.updateFaturaStatus(faturaId, 'pago', 0, 0);
+          await api.updateFaturaStatus(faturaId, 'pago', 0, 0, contaFinanceira, data);
           mensagem += ` Juros registrado: ${Utils.formatCurrency((valorPago + valorHaver) - valorOriginal)}`;
         } else { // haver
           const haverGerado = (valorPago + valorHaver) - valorOriginal;
-          await api.updateFaturaStatus(faturaId, 'pago', haverGerado, 0);
+          await api.updateFaturaStatus(faturaId, 'pago', haverGerado, 0, contaFinanceira, data);
           mensagem += ` Haver gerado: ${Utils.formatCurrency(haverGerado)}`;
         }
       } else if (valorPago + valorHaver < valorOriginal) {
         const valorVale = valorOriginal - (valorPago + valorHaver);
         if (acao === 'desconto') {
           // Considera pago com desconto, sem gerar vale
-          await api.updateFaturaStatus(faturaId, 'pago', 0, 0);
+          await api.updateFaturaStatus(faturaId, 'pago', 0, 0, contaFinanceira, data);
           mensagem += ` Desconto aplicado: ${Utils.formatCurrency(valorVale)}`;
         } else { // normal ou vale
-          await api.updateFaturaStatus(faturaId, 'pago', 0, valorVale);
+          await api.updateFaturaStatus(faturaId, 'pago', 0, valorVale, contaFinanceira, data);
           mensagem += ` Vale gerado: ${Utils.formatCurrency(valorVale)}`;
         }
       } else {
-        await api.updateFaturaStatus(faturaId, 'pago', 0, 0);
+        await api.updateFaturaStatus(faturaId, 'pago', 0, 0, contaFinanceira, data);
       }
       
       Utils.showNotification(mensagem, 'success');

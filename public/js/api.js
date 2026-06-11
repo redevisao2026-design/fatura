@@ -145,11 +145,17 @@ class ApiService {
     return this.handleResponse(response);
   }
 
-  async updateFaturaStatus(id, status, valorHaver = 0, valorVale = 0) {
+  async updateFaturaStatus(id, status, valorHaver = 0, valorVale = 0, contaFinanceira = '', dataPagamento = '') {
     const response = await fetch(`${API_URL}/faturas/${id}/status`, {
       method: 'PUT',
       headers: this.getHeaders(),
-      body: JSON.stringify({ status, valorHaver, valorVale })
+      body: JSON.stringify({
+        status,
+        valorHaver,
+        valorVale,
+        conta_financeira: contaFinanceira,
+        data_pagamento: dataPagamento
+      })
     });
     return this.handleResponse(response);
   }

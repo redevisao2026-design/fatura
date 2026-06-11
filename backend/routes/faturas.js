@@ -468,28 +468,90 @@ router.post('/:id/anexos', uploadAnexos.fields([
 // Atualizar apenas o status da fatura
 router.put('/:id/status', async (req, res) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const {
+    status,
+    valorHaver = 0,
+    valorVale = 0,
+    conta_financeira: contaFinanceira = null,
+    data_pagamento: dataPagamento = null,
+  } = req.body;
   const novoStatus = String(status || '').trim();
+  const contaFinanceiraNormalizada = String(contaFinanceira || '').trim() || null;
+  const dataPagamentoNormalizada = String(dataPagamento || '').trim() || null;
+  const valorHaverNum = Math.abs(Number(valorHaver) || 0);
+  const valorValeNum = Math.abs(Number(valorVale) || 0);
+  const valorCredito = valorHaverNum > 0 ? valorHaverNum : valorValeNum;
+  const tipoCredito = valorHaverNum > 0 ? 'HAVER' : (valorValeNum > 0 ? 'VALE' : null);
 
   if (!novoStatus) {
     return res.status(400).json({ erro: 'Status inválido' });
   }
 
   try {
-    const { rowCount, rows } = await pool.query(
-      'UPDATE faturas SET status = $1 WHERE id = $2 RETURNING id, status',
-      [novoStatus, id]
-    );
+    const client = await pool.connect();
 
-    if (rowCount === 0) {
-      return res.status(404).json({ erro: 'Fatura não encontrada' });
+    try {
+      await client.query('BEGIN');
+
+      const { rows: faturaRows } = await client.query(
+        'SELECT * FROM faturas WHERE id = $1 FOR UPDATE',
+        [id]
+      );
+
+      const faturaAtual = faturaRows[0];
+      if (!faturaAtual) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ erro: 'Fatura não encontrada' });
+      }
+
+      const { rows } = await client.query(
+        'UPDATE faturas SET status = $1, conta_financeira = COALESCE($3, conta_financeira) WHERE id = $2 RETURNING id, status',
+        [novoStatus, id, contaFinanceiraNormalizada]
+      );
+
+      let creditoGerado = null;
+      if (novoStatus === 'pago' && valorCredito > 0 && tipoCredito) {
+        const dataCredito = dataPagamentoNormalizada || formatarData(getDataBrasilia());
+        const observacaoBase = faturaAtual.observacao ? `${faturaAtual.observacao} | ` : '';
+        const observacaoCredito = `${observacaoBase}${tipoCredito.toLowerCase()} gerado da fatura ${faturaAtual.numero_fatura} (ID ${faturaAtual.id})`;
+
+        const { rows: creditoRows } = await client.query(
+          `INSERT INTO faturas (
+            cliente_id, empresa_id, numero_fatura, valor, data_vencimento, status,
+            conta_financeira, turno, pdv, observacao
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+          RETURNING id, numero_fatura, valor, status`,
+          [
+            faturaAtual.cliente_id,
+            faturaAtual.empresa_id,
+            tipoCredito,
+            -valorCredito,
+            dataCredito,
+            'haver',
+            contaFinanceiraNormalizada || faturaAtual.conta_financeira || null,
+            faturaAtual.turno || null,
+            faturaAtual.pdv || null,
+            observacaoCredito
+          ]
+        );
+
+        creditoGerado = creditoRows[0];
+      }
+
+      await client.query('COMMIT');
+
+      res.json({
+        mensagem: 'Status atualizado com sucesso',
+        id: rows[0].id,
+        status: rows[0].status,
+        creditoGerado
+      });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
     }
-
-    res.json({
-      mensagem: 'Status atualizado com sucesso',
-      id: rows[0].id,
-      status: rows[0].status
-    });
   } catch (err) {
     console.error('[Faturas] Erro ao atualizar status:', err);
     res.status(400).json({ erro: 'Erro ao atualizar status da fatura' });
