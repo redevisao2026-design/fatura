@@ -166,9 +166,11 @@ router.get('/', async (req, res) => {
       SELECT f.*, TO_CHAR(f.data_vencimento, 'YYYY-MM-DD') as data_vencimento, c.nome as cliente_nome
       FROM faturas f
       JOIN clientes c ON f.cliente_id = c.id
-      WHERE LOWER(f.status) != 'haver'
-        AND LOWER(f.numero_fatura) != 'haver'
-        AND f.valor >= 0
+      WHERE NOT (
+        LOWER(f.status) = 'haver'
+        OR LOWER(f.numero_fatura) = 'haver'
+        OR (f.valor < 0 AND LOWER(f.numero_fatura) <> 'vale')
+      )
       ORDER BY f.data_vencimento DESC
     `);
     res.json(rows);
@@ -482,6 +484,7 @@ router.put('/:id/status', async (req, res) => {
   const valorValeNum = Math.abs(Number(valorVale) || 0);
   const valorCredito = valorHaverNum > 0 ? valorHaverNum : valorValeNum;
   const tipoCredito = valorHaverNum > 0 ? 'HAVER' : (valorValeNum > 0 ? 'VALE' : null);
+  const statusCredito = valorHaverNum > 0 ? 'haver' : (valorValeNum > 0 ? 'vale' : null);
 
   if (!novoStatus) {
     return res.status(400).json({ erro: 'Status inválido' });
@@ -527,7 +530,7 @@ router.put('/:id/status', async (req, res) => {
             tipoCredito,
             -valorCredito,
             dataCredito,
-            'haver',
+            statusCredito,
             contaFinanceiraNormalizada || faturaAtual.conta_financeira || null,
             faturaAtual.turno || null,
             faturaAtual.pdv || null,

@@ -2,7 +2,7 @@
 const Faturas = {
   versao: '20260328a',
   faturas: [],
-  faturasListagem: [], // faturas sem haver/vale negativo para exibição principal
+  faturasListagem: [], // base principal sem haver; vale pode aparecer como lançamento próprio
   faturasHaver: [],
   clientes: [],
   empresas: [],
@@ -38,6 +38,8 @@ const Faturas = {
         return 'Descontado';
       case 'haver':
         return 'Haver';
+      case 'vale':
+        return 'Vale';
       default:
         return status || '';
     }
@@ -53,6 +55,8 @@ const Faturas = {
         return 'danger';
       case 'advogado':
         return 'advogado';
+      case 'vale':
+        return 'warning';
       case 'nova gestao':
         return 'nova-gestao';
       default:
@@ -108,7 +112,7 @@ const Faturas = {
         this.loadEmpresas()
       ]);
       this.faturas = todas || [];
-      // base usada na página principal: remove haver/vale negativo
+      // base usada na página principal: remove apenas haver; vale segue como lançamento próprio
       this.faturasListagem = this.faturas.filter(f => !this.isHaver(f));
       this.clientes = clientes || [];
       this.empresas = empresas || [];
@@ -892,6 +896,9 @@ const Faturas = {
       Utils.showNotification(mensagem, 'success');
       this.closePagamentoModal();
       await this.loadListar();
+      if (valorHaver > 0 || valorOriginal > valorPago) {
+        await this.loadHaver();
+      }
     } catch (error) {
       Utils.showNotification('Erro ao registrar pagamento', 'error');
       console.error(error);
