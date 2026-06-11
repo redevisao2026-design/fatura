@@ -189,7 +189,6 @@ router.get('/haver', async (req, res) => {
       JOIN clientes c ON f.cliente_id = c.id
       WHERE LOWER(f.status) = 'haver'
          OR LOWER(f.numero_fatura) = 'haver'
-         OR f.valor < 0
       ORDER BY f.data_vencimento DESC
     `);
     res.json(rows);
