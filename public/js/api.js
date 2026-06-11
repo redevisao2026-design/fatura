@@ -295,11 +295,31 @@ class ApiService {
       window.location.href = '/';
       throw new Error('Sessão expirada. Faça login novamente.');
     }
-    
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.erro || 'Erro na requisição');
+
+    const contentType = response.headers.get('content-type') || '';
+    const rawBody = await response.text();
+    let data = {};
+
+    if (rawBody) {
+      if (contentType.includes('application/json')) {
+        try {
+          data = JSON.parse(rawBody);
+        } catch (error) {
+          data = { erro: rawBody };
+        }
+      } else {
+        try {
+          data = JSON.parse(rawBody);
+        } catch (error) {
+          data = { erro: rawBody };
+        }
+      }
     }
+
+    if (!response.ok) {
+      throw new Error(data.erro || data.message || 'Erro na requisição');
+    }
+
     return data;
   }
 }

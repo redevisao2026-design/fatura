@@ -465,6 +465,37 @@ router.post('/:id/anexos', uploadAnexos.fields([
   }
 });
 
+// Atualizar apenas o status da fatura
+router.put('/:id/status', async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  const novoStatus = String(status || '').trim();
+
+  if (!novoStatus) {
+    return res.status(400).json({ erro: 'Status inválido' });
+  }
+
+  try {
+    const { rowCount, rows } = await pool.query(
+      'UPDATE faturas SET status = $1 WHERE id = $2 RETURNING id, status',
+      [novoStatus, id]
+    );
+
+    if (rowCount === 0) {
+      return res.status(404).json({ erro: 'Fatura não encontrada' });
+    }
+
+    res.json({
+      mensagem: 'Status atualizado com sucesso',
+      id: rows[0].id,
+      status: rows[0].status
+    });
+  } catch (err) {
+    console.error('[Faturas] Erro ao atualizar status:', err);
+    res.status(400).json({ erro: 'Erro ao atualizar status da fatura' });
+  }
+});
+
 // Atualizar fatura
 router.put('/:id', async (req, res) => {
   const { cliente_id, empresa_id, numero_fatura, valor, data_vencimento, status, conta_financeira, turno, pdv, observacao } = req.body;
