@@ -886,8 +886,11 @@ const Faturas = {
           await api.updateFaturaStatus(faturaId, 'pago', 0, 0, contaFinanceira, data);
           mensagem += ` Desconto aplicado: ${Utils.formatCurrency(valorVale)}`;
         } else { // normal ou vale
-          await api.updateFaturaStatus(faturaId, 'pago', 0, valorVale, contaFinanceira, data);
+          const resultado = await api.updateFaturaStatus(faturaId, 'pago', 0, valorVale, contaFinanceira, data);
           mensagem += ` Vale gerado: ${Utils.formatCurrency(valorVale)}`;
+          if (resultado?.faturaRemovida) {
+            mensagem += ' Fatura original removida.';
+          }
         }
       } else {
         await api.updateFaturaStatus(faturaId, 'pago', 0, 0, contaFinanceira, data);

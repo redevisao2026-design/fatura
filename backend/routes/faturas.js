@@ -492,6 +492,7 @@ router.put('/:id/status', async (req, res) => {
 
   try {
     const client = await pool.connect();
+    const anexosParaExcluir = [];
 
     try {
       await client.query('BEGIN');
@@ -507,12 +508,17 @@ router.put('/:id/status', async (req, res) => {
         return res.status(404).json({ erro: 'Fatura não encontrada' });
       }
 
-      const { rows } = await client.query(
-        'UPDATE faturas SET status = $1, conta_financeira = COALESCE($3, conta_financeira) WHERE id = $2 RETURNING id, status',
-        [novoStatus, id, contaFinanceiraNormalizada]
+      anexosParaExcluir.push(
+        ...(faturaAtual.arquivo_path ? [faturaAtual.arquivo_path] : []),
+        ...(faturaAtual.boleto_path ? [faturaAtual.boleto_path] : []),
+        ...(faturaAtual.nota_path ? [faturaAtual.nota_path] : [])
       );
 
       let creditoGerado = null;
+      let respostaId = Number(id);
+      let respostaStatus = novoStatus;
+      let faturaRemovida = false;
+
       if (novoStatus === 'pago' && valorCredito > 0 && tipoCredito) {
         const dataCredito = dataPagamentoNormalizada || formatarData(getDataBrasilia());
         const observacaoBase = faturaAtual.observacao ? `${faturaAtual.observacao} | ` : '';
@@ -539,15 +545,49 @@ router.put('/:id/status', async (req, res) => {
         );
 
         creditoGerado = creditoRows[0];
+
+        if (valorValeNum > 0) {
+          await client.query('DELETE FROM faturas WHERE id = $1', [id]);
+          faturaRemovida = true;
+          respostaId = creditoGerado.id;
+          respostaStatus = creditoGerado.status;
+        } else {
+          const { rows: rowsAtualizadas } = await client.query(
+            'UPDATE faturas SET status = $1, conta_financeira = COALESCE($3, conta_financeira) WHERE id = $2 RETURNING id, status',
+            [novoStatus, id, contaFinanceiraNormalizada]
+          );
+          respostaId = rowsAtualizadas[0].id;
+          respostaStatus = rowsAtualizadas[0].status;
+        }
+      } else {
+        const { rows: rowsAtualizadas } = await client.query(
+          'UPDATE faturas SET status = $1, conta_financeira = COALESCE($3, conta_financeira) WHERE id = $2 RETURNING id, status',
+          [novoStatus, id, contaFinanceiraNormalizada]
+        );
+        respostaId = rowsAtualizadas[0].id;
+        respostaStatus = rowsAtualizadas[0].status;
       }
 
       await client.query('COMMIT');
 
+      if (faturaRemovida) {
+        for (const asset of anexosParaExcluir) {
+          try {
+            await deleteStoredAsset(asset);
+          } catch (assetErr) {
+            console.warn('[Faturas] Erro ao remover anexo da fatura original:', assetErr.message);
+          }
+        }
+      }
+
       res.json({
-        mensagem: 'Status atualizado com sucesso',
-        id: rows[0].id,
-        status: rows[0].status,
-        creditoGerado
+        mensagem: faturaRemovida
+          ? 'Vale gerado e fatura original removida'
+          : 'Status atualizado com sucesso',
+        id: respostaId,
+        status: respostaStatus,
+        creditoGerado,
+        faturaRemovida
       });
     } catch (err) {
       await client.query('ROLLBACK');
