@@ -7,6 +7,7 @@ const Faturas = {
   clientes: [],
   empresas: [],
   faturasFiltradas: [],
+  faturaAutocompleteInit: false,
   haverAutocompleteInit: false,
 
   normalizeStatus(status) {
@@ -93,10 +94,18 @@ const Faturas = {
 
   async loadCadastrar() {
     try {
+      document.getElementById('fatura-form')?.reset();
+      const clienteHidden = document.getElementById('fatura-cliente');
+      const clienteBusca = document.getElementById('fatura-cliente-busca');
+      const clienteSugestoes = document.getElementById('fatura-cliente-sugestoes');
+      if (clienteHidden) clienteHidden.value = '';
+      if (clienteBusca) clienteBusca.value = '';
+      if (clienteSugestoes) clienteSugestoes.classList.add('hidden');
+
       this.clientes = await api.getClientes();
       this.empresas = await this.loadEmpresas();
-      this.loadClientesSelect();
       this.loadEmpresasSelect();
+      this.setupFaturaClienteBusca();
     } catch (error) {
       Utils.showNotification('Erro ao carregar dados', 'error');
       console.error(error);
@@ -546,14 +555,20 @@ const Faturas = {
     event.preventDefault();
     
     const empresaId = document.getElementById('fatura-empresa').value;
+    const clienteId = document.getElementById('fatura-cliente').value;
     
     if (!empresaId) {
       Utils.showNotification('Selecione uma empresa', 'error');
       return;
     }
+
+    if (!clienteId) {
+      Utils.showNotification('Selecione um cliente da lista', 'error');
+      return;
+    }
     
     const data = {
-      cliente_id: document.getElementById('fatura-cliente').value,
+      cliente_id: clienteId,
       empresa_id: empresaId,
       numero_fatura: document.getElementById('fatura-numero').value,
       valor: document.getElementById('fatura-valor').value,
@@ -565,6 +580,7 @@ const Faturas = {
       await api.createFatura(data);
       Utils.showNotification('Fatura criada com sucesso!');
       document.getElementById('fatura-form').reset();
+      document.getElementById('fatura-cliente-sugestoes')?.classList.add('hidden');
       router.navigate('faturas-listar');
     } catch (error) {
       Utils.showNotification(error.message, 'error');
@@ -1063,27 +1079,39 @@ const Faturas = {
     this.renderHaver();
   },
 
-  // Autocomplete cliente no haver
-  setupHaverClienteBusca() {
-    if (this.haverAutocompleteInit) return;
-    const input = document.getElementById('haver-cliente-busca');
-    const hidden = document.getElementById('haver-cliente');
-    const list = document.getElementById('haver-cliente-sugestoes');
+  setupClienteAutocomplete({ inputId, hiddenId, listId, initFlag }) {
+    if (this[initFlag]) return;
+    const input = document.getElementById(inputId);
+    const hidden = document.getElementById(hiddenId);
+    const list = document.getElementById(listId);
     if (!input || !hidden || !list) return;
+
+    const hideList = () => {
+      list.classList.add('hidden');
+      list.innerHTML = '';
+    };
 
     const renderSugestoes = (termo) => {
       const q = (termo || '').toLowerCase().trim();
       if (!q) {
-        list.classList.add('hidden');
+        hideList();
         return;
       }
-      const matches = this.clientes
-        .filter(c => c.nome.toLowerCase().includes(q) || (c.cpf_cnpj || '').replace(/\D/g,'').includes(q))
+
+      const qDoc = q.replace(/\D/g, '');
+      const matches = (this.clientes || [])
+        .filter(c => {
+          const nome = (c.nome || '').toLowerCase();
+          const doc = (c.cpf_cnpj || '').replace(/\D/g, '');
+          return nome.includes(q) || (qDoc && doc.includes(qDoc));
+        })
         .slice(0, 20);
+
       if (!matches.length) {
-        list.classList.add('hidden');
+        hideList();
         return;
       }
+
       list.innerHTML = matches.map(c => `
         <div class="autocomplete-item" data-id="${c.id}" data-nome="${c.nome}">
           ${c.nome}
@@ -1102,23 +1130,41 @@ const Faturas = {
       renderSugestoes(input.value);
     });
 
-    document.addEventListener('click', (ev) => {
-      if (!list.contains(ev.target) && ev.target !== input) {
-        list.classList.add('hidden');
-      }
-    });
-
     list.addEventListener('click', (ev) => {
       const item = ev.target.closest('.autocomplete-item');
       if (!item) return;
-      const id = item.getAttribute('data-id');
-      const nome = item.getAttribute('data-nome');
-      hidden.value = id;
-      input.value = nome;
-      list.classList.add('hidden');
+      hidden.value = item.getAttribute('data-id');
+      input.value = item.getAttribute('data-nome');
+      hideList();
     });
 
-    this.haverAutocompleteInit = true;
+    document.addEventListener('click', (ev) => {
+      if (!list.contains(ev.target) && ev.target !== input) {
+        hideList();
+      }
+    });
+
+    this[initFlag] = true;
+  },
+
+  // Autocomplete cliente no cadastro de fatura
+  setupFaturaClienteBusca() {
+    this.setupClienteAutocomplete({
+      inputId: 'fatura-cliente-busca',
+      hiddenId: 'fatura-cliente',
+      listId: 'fatura-cliente-sugestoes',
+      initFlag: 'faturaAutocompleteInit'
+    });
+  },
+
+  // Autocomplete cliente no haver
+  setupHaverClienteBusca() {
+    this.setupClienteAutocomplete({
+      inputId: 'haver-cliente-busca',
+      hiddenId: 'haver-cliente',
+      listId: 'haver-cliente-sugestoes',
+      initFlag: 'haverAutocompleteInit'
+    });
   },
 
   // Modal de status rápido

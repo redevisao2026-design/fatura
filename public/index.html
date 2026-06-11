@@ -377,11 +377,11 @@
                     <option value="">Selecione uma empresa</option>
                   </select>
                 </div>
-                <div class="form-group">
+                <div class="form-group" style="position: relative;">
                   <label>Cliente *</label>
-                  <select id="fatura-cliente" required>
-                    <option value="">Selecione um cliente</option>
-                  </select>
+                  <input type="hidden" id="fatura-cliente">
+                  <input type="text" id="fatura-cliente-busca" placeholder="Digite para buscar" autocomplete="off" required>
+                  <div id="fatura-cliente-sugestoes" class="autocomplete-list hidden"></div>
                 </div>
               </div>
               <div class="form-row">
