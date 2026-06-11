@@ -914,7 +914,12 @@ const Faturas = {
     try {
       await api.deleteFatura(id);
       Utils.showNotification('Fatura deletada com sucesso!', 'success');
-      await this.loadListar();
+      const rotaAtual = (router?.currentRoute || window.location.hash.substring(1) || '').split('/')[0];
+      if (rotaAtual === 'haver-listar') {
+        await this.loadHaver();
+      } else {
+        await this.loadListar();
+      }
     } catch (error) {
       Utils.showNotification('Erro ao deletar fatura', 'error');
       console.error(error);
