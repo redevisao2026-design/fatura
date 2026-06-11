@@ -2,7 +2,7 @@
 const Faturas = {
   versao: '20260328a',
   faturas: [],
-  faturasListagem: [], // base principal sem haver; vale pode aparecer como lançamento próprio
+  faturasListagem: [], // base principal sem haver; vale aparece como lançamento próprio de débito
   faturasHaver: [],
   clientes: [],
   empresas: [],
@@ -77,14 +77,14 @@ const Faturas = {
   },
 
   /**
-   * Identifica faturas de haver/vale que não devem aparecer na lista principal.
-   * Critérios: status = haver, número = haver, ou valor negativo.
+   * Identifica faturas de haver que não devem aparecer na lista principal.
+   * Haver = saldo a favor do cliente (empresa deve ao cliente), então fica fora da lista principal.
    */
   isHaver(f) {
     const st = (f.status || '').toString().trim().toLowerCase();
     const numero = (f.numero_fatura || '').toString().trim().toLowerCase();
     const valor = parseFloat(f.valor) || 0;
-    // oculta apenas havers; vales devem aparecer mesmo que negativos
+    // Oculta apenas haveres; vales devem aparecer na listagem principal.
     if (st === 'haver') return true;
     if (numero === 'haver') return true;
     if (valor < 0 && numero !== 'vale') return true;
@@ -112,7 +112,7 @@ const Faturas = {
         this.loadEmpresas()
       ]);
       this.faturas = todas || [];
-      // base usada na página principal: remove apenas haver; vale segue como lançamento próprio
+      // Base usada na página principal: remove apenas haver; vale segue como lançamento próprio
       this.faturasListagem = this.faturas.filter(f => !this.isHaver(f));
       this.clientes = clientes || [];
       this.empresas = empresas || [];
@@ -179,7 +179,7 @@ const Faturas = {
         api.getClientes(),
         this.loadEmpresas()
       ]);
-      // aqui faturas contém apenas haver/vales negativos
+      // Aqui faturas contém apenas haveres
       this.faturas = havers || [];
       this.faturasHaver = havers || [];
       this.clientes = clientes || [];

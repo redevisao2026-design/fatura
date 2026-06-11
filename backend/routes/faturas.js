@@ -484,6 +484,7 @@ router.put('/:id/status', async (req, res) => {
   const valorCredito = valorHaverNum > 0 ? valorHaverNum : valorValeNum;
   const tipoCredito = valorHaverNum > 0 ? 'HAVER' : (valorValeNum > 0 ? 'VALE' : null);
   const statusCredito = valorHaverNum > 0 ? 'haver' : (valorValeNum > 0 ? 'vale' : null);
+  // Convenção: haver = saldo a favor do cliente (valor negativo); vale = saldo devedor do cliente (valor positivo).
   const valorLancamento = valorHaverNum > 0 ? -valorCredito : valorCredito;
 
   if (!novoStatus) {
