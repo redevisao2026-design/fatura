@@ -484,6 +484,7 @@ router.put('/:id/status', async (req, res) => {
   const valorCredito = valorHaverNum > 0 ? valorHaverNum : valorValeNum;
   const tipoCredito = valorHaverNum > 0 ? 'HAVER' : (valorValeNum > 0 ? 'VALE' : null);
   const statusCredito = valorHaverNum > 0 ? 'haver' : (valorValeNum > 0 ? 'vale' : null);
+  const valorLancamento = valorHaverNum > 0 ? -valorCredito : valorCredito;
 
   if (!novoStatus) {
     return res.status(400).json({ erro: 'Status inválido' });
@@ -533,7 +534,7 @@ router.put('/:id/status', async (req, res) => {
             faturaAtual.cliente_id,
             faturaAtual.empresa_id,
             tipoCredito,
-            -valorCredito,
+            valorLancamento,
             dataCredito,
             statusCredito,
             contaFinanceiraNormalizada || faturaAtual.conta_financeira || null,
