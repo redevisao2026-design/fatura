@@ -57,6 +57,11 @@ const Relatorios = {
     return String(fatura?.status || '').toLowerCase();
   },
 
+  _setMetric(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  },
+
   _calcular() {
     const faturas  = this._getFiltradas();
     const ativas   = faturas.filter(f => !this._isQuitada(f));
@@ -68,14 +73,14 @@ const Relatorios = {
     const quitadas = faturas.filter(f => this._isQuitada(f));
     const soma     = arr => arr.reduce((s, f) => s + parseFloat(f.valor || 0), 0);
 
-    document.getElementById('rel-total-todas').textContent    = Utils.formatCurrency(soma(ativas));
-    document.getElementById('rel-qtd-todas').textContent      = `${ativas.length} fatura${ativas.length !== 1 ? 's' : ''}`;
-    document.getElementById('rel-total-vencidas').textContent = Utils.formatCurrency(soma(vencidas));
-    document.getElementById('rel-qtd-vencidas').textContent   = `${vencidas.length} fatura${vencidas.length !== 1 ? 's' : ''}`;
-    document.getElementById('rel-total-receber').textContent  = Utils.formatCurrency(soma(receber));
-    document.getElementById('rel-qtd-receber').textContent    = `${receber.length} fatura${receber.length !== 1 ? 's' : ''}`;
-    document.getElementById('rel-total-quitadas').textContent = Utils.formatCurrency(soma(quitadas));
-    document.getElementById('rel-qtd-quitadas').textContent   = `${quitadas.length} fatura${quitadas.length !== 1 ? 's' : ''}`;
+    this._setMetric('rel-total-todas', Utils.formatCurrency(soma(ativas)));
+    this._setMetric('rel-qtd-todas', `${ativas.length} fatura${ativas.length !== 1 ? 's' : ''}`);
+    this._setMetric('rel-total-vencidas', Utils.formatCurrency(soma(vencidas)));
+    this._setMetric('rel-qtd-vencidas', `${vencidas.length} fatura${vencidas.length !== 1 ? 's' : ''}`);
+    this._setMetric('rel-total-receber', Utils.formatCurrency(soma(receber)));
+    this._setMetric('rel-qtd-receber', `${receber.length} fatura${receber.length !== 1 ? 's' : ''}`);
+    this._setMetric('rel-total-quitadas', Utils.formatCurrency(soma(quitadas)));
+    this._setMetric('rel-qtd-quitadas', `${quitadas.length} fatura${quitadas.length !== 1 ? 's' : ''}`);
   },
 
   abrirModal(tipo) {

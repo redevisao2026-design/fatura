@@ -2225,18 +2225,11 @@ table td {
 }
 
 /* ===== RELATÓRIOS ===== */
-.rel-card-vencidas::before {
-  background: linear-gradient(90deg, #e74c3c, #c0392b) !important;
-}
 .rel-card-receber::before {
   background: linear-gradient(90deg, #f39c12, #e67e22) !important;
 }
 .rel-card-quitadas::before {
   background: linear-gradient(90deg, #27ae60, #1e8449) !important;
-}
-.rel-card-vencidas:hover {
-  border-color: #e74c3c !important;
-  box-shadow: 0 8px 24px rgba(231,76,60,0.15) !important;
 }
 .rel-card-receber:hover {
   border-color: #f39c12 !important;
@@ -2246,12 +2239,19 @@ table td {
   border-color: #27ae60 !important;
   box-shadow: 0 8px 24px rgba(39,174,96,0.15) !important;
 }
+.rel-stats-relatorios {
+  grid-template-columns: repeat(3, 1fr) !important;
+}
+@media (max-width: 768px) {
+  .stats.rel-stats-relatorios {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
 .stat-card {
   border: 2px solid transparent;
 }
 
 /* Stat number nos cards de relatório */
-.rel-card-vencidas .stat-number,
 .rel-card-receber .stat-number,
 .rel-card-quitadas .stat-number {
   font-size: clamp(1.15rem, 1.8vw, 1.8rem);
@@ -2266,7 +2266,6 @@ table td {
   -webkit-background-clip: unset;
   background-clip: unset;
 }
-.rel-card-vencidas .stat-number { color: #e74c3c; }
 .rel-card-receber .stat-number  { color: #f39c12; }
 .rel-card-quitadas .stat-number { color: #27ae60; }
 
