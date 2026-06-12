@@ -7,9 +7,11 @@ const XLSX = require('xlsx');
 const { pool } = require('../database');
 const { ensureUploadBaseDir } = require('../upload-path');
 const {
+  buildSupabaseRef,
   deleteSupabaseObject,
   fetchSupabaseObject,
   hasSupabaseStorageConfig,
+  getSupabaseStorageConfig,
   parseSupabaseRef,
   uploadBufferToSupabase,
 } = require('../supabase-storage');
@@ -86,9 +88,18 @@ async function deleteStoredAsset(storedPath) {
   if (!storedPath) return;
 
   const parsed = parseSupabaseRef(storedPath);
+  const config = getSupabaseStorageConfig();
   if (parsed) {
     await deleteSupabaseObject(storedPath);
     return;
+  }
+
+  if (config) {
+    try {
+      await deleteSupabaseObject(buildSupabaseRef(config.bucket, storedPath));
+    } catch (error) {
+      console.warn('[Faturas] Falha ao remover anexo do Supabase, tentando remoção local:', error.message);
+    }
   }
 
   const filePath = resolveUploadPath(storedPath);
@@ -99,6 +110,7 @@ async function deleteStoredAsset(storedPath) {
 
 async function sendStoredAsset(storedPath, res, fallbackName) {
   const parsed = parseSupabaseRef(storedPath);
+  const config = getSupabaseStorageConfig();
 
   if (parsed) {
     const response = await fetchSupabaseObject(storedPath);
@@ -130,6 +142,40 @@ async function sendStoredAsset(storedPath, res, fallbackName) {
 
     Readable.fromWeb(response.body).pipe(res);
     return true;
+  }
+
+  if (config && storedPath) {
+    const legacySupabaseRef = buildSupabaseRef(config.bucket, storedPath);
+    const response = await fetchSupabaseObject(legacySupabaseRef);
+
+    if (response) {
+      if (!response.ok) {
+        if (response.status !== 404) {
+          const responseText = await response.text();
+          const error = new Error(`Erro ao baixar arquivo do Supabase: ${response.status} ${responseText}`);
+          error.statusCode = response.status;
+          throw error;
+        }
+      } else {
+        const downloadName = path.basename(storedPath) || fallbackName || 'arquivo';
+        res.setHeader('Content-Type', response.headers.get('content-type') || 'application/octet-stream');
+        res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+
+        const contentLength = response.headers.get('content-length');
+        if (contentLength) {
+          res.setHeader('Content-Length', contentLength);
+        }
+
+        if (!response.body) {
+          const buffer = Buffer.from(await response.arrayBuffer());
+          res.send(buffer);
+          return true;
+        }
+
+        Readable.fromWeb(response.body).pipe(res);
+        return true;
+      }
+    }
   }
 
   const filePath = resolveUploadPath(storedPath);
