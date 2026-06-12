@@ -938,9 +938,6 @@ const Faturas = {
       Utils.showNotification(mensagem, 'success');
       this.closePagamentoModal();
       await this.loadListar();
-      if (valorHaver > 0 || valorOriginal > valorPago) {
-        await this.loadHaver();
-      }
     } catch (error) {
       Utils.showNotification('Erro ao registrar pagamento', 'error');
       console.error(error);
