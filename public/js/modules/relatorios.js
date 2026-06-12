@@ -49,15 +49,20 @@ const Relatorios = {
     });
   },
 
+  _isQuitada(fatura) {
+    return String(fatura?.status || '').toLowerCase() === 'pago';
+  },
+
   _calcular() {
     const faturas  = this._getFiltradas();
-    const vencidas = faturas.filter(f => f.status === 'vencido');
-    const receber  = faturas.filter(f => f.status === 'pendente');
-    const quitadas = faturas.filter(f => f.status === 'pago');
+    const ativas   = faturas.filter(f => !this._isQuitada(f));
+    const vencidas = ativas.filter(f => f.status === 'vencido');
+    const receber  = ativas.filter(f => f.status === 'pendente');
+    const quitadas = faturas.filter(f => this._isQuitada(f));
     const soma     = arr => arr.reduce((s, f) => s + parseFloat(f.valor || 0), 0);
 
-    document.getElementById('rel-total-todas').textContent    = Utils.formatCurrency(soma(faturas));
-    document.getElementById('rel-qtd-todas').textContent      = `${faturas.length} fatura${faturas.length !== 1 ? 's' : ''}`;
+    document.getElementById('rel-total-todas').textContent    = Utils.formatCurrency(soma(ativas));
+    document.getElementById('rel-qtd-todas').textContent      = `${ativas.length} fatura${ativas.length !== 1 ? 's' : ''}`;
     document.getElementById('rel-total-vencidas').textContent = Utils.formatCurrency(soma(vencidas));
     document.getElementById('rel-qtd-vencidas').textContent   = `${vencidas.length} fatura${vencidas.length !== 1 ? 's' : ''}`;
     document.getElementById('rel-total-receber').textContent  = Utils.formatCurrency(soma(receber));
@@ -74,7 +79,8 @@ const Relatorios = {
 
     this._modalTipo    = tipo;
     this._modalCorBase = cores[tipo];
-    this._modalBase    = (statusMap[tipo] ? faturas.filter(f => f.status === statusMap[tipo]) : faturas)
+    const base         = (statusMap[tipo] ? faturas.filter(f => f.status === statusMap[tipo]) : faturas);
+    this._modalBase    = (tipo === 'todas' ? base.filter(f => !this._isQuitada(f)) : base)
       .sort((a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento));
 
     // Preencher select de empresa do modal
