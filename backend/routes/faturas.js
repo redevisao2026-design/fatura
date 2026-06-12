@@ -539,7 +539,6 @@ router.put('/:id/status', async (req, res) => {
 
   try {
     const client = await pool.connect();
-    const anexosParaExcluir = [];
 
     try {
       await client.query('BEGIN');
@@ -555,12 +554,6 @@ router.put('/:id/status', async (req, res) => {
         return res.status(404).json({ erro: 'Fatura não encontrada' });
       }
 
-      anexosParaExcluir.push(
-        ...(faturaAtual.arquivo_path ? [faturaAtual.arquivo_path] : []),
-        ...(faturaAtual.boleto_path ? [faturaAtual.boleto_path] : []),
-        ...(faturaAtual.nota_path ? [faturaAtual.nota_path] : [])
-      );
-
       let creditoGerado = null;
       let respostaId = Number(id);
       let respostaStatus = novoStatus;
@@ -574,9 +567,10 @@ router.put('/:id/status', async (req, res) => {
         const { rows: creditoRows } = await client.query(
           `INSERT INTO faturas (
             cliente_id, empresa_id, numero_fatura, valor, data_vencimento, status,
-            conta_financeira, turno, pdv, observacao
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-          RETURNING id, numero_fatura, valor, status`,
+            conta_financeira, turno, pdv, observacao,
+            arquivo_path, tipo_arquivo, boleto_path, nota_path
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+          RETURNING id, numero_fatura, valor, status, boleto_path, nota_path`,
           [
             faturaAtual.cliente_id,
             faturaAtual.empresa_id,
@@ -587,7 +581,11 @@ router.put('/:id/status', async (req, res) => {
             contaFinanceiraNormalizada || faturaAtual.conta_financeira || null,
             faturaAtual.turno || null,
             faturaAtual.pdv || null,
-            observacaoCredito
+            observacaoCredito,
+            valorValeNum > 0 ? (faturaAtual.arquivo_path || null) : null,
+            valorValeNum > 0 ? (faturaAtual.tipo_arquivo || null) : null,
+            valorValeNum > 0 ? (faturaAtual.boleto_path || null) : null,
+            valorValeNum > 0 ? (faturaAtual.nota_path || null) : null
           ]
         );
 
@@ -616,16 +614,6 @@ router.put('/:id/status', async (req, res) => {
       }
 
       await client.query('COMMIT');
-
-      if (faturaRemovida) {
-        for (const asset of anexosParaExcluir) {
-          try {
-            await deleteStoredAsset(asset);
-          } catch (assetErr) {
-            console.warn('[Faturas] Erro ao remover anexo da fatura original:', assetErr.message);
-          }
-        }
-      }
 
       res.json({
         mensagem: faturaRemovida
