@@ -54,12 +54,72 @@ const Relatorios = {
   },
 
   _statusNormalizado(fatura) {
-    return String(fatura?.status || '').toLowerCase();
+    return String(fatura?.status || '')
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .replace(/[_-]+/g, ' ')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, ' ');
   },
 
   _setMetric(id, value) {
     const el = document.getElementById(id);
     if (el) el.textContent = value;
+  },
+
+  _statusLabel(status) {
+    const labels = {
+      pendente: 'Pendente',
+      pago: 'Pago',
+      vencido: 'Vencido',
+      'nova gestao': 'Nova Gestão',
+      advogado: 'Advogado',
+      protestado: 'Protestado',
+      descontado: 'Descontado',
+      haver: 'Haver',
+      vale: 'Vale',
+    };
+    const normalized = this._statusNormalizado(status);
+    return labels[normalized] || String(status || '').trim() || '';
+  },
+
+  _buildStatusOptions(tipo, base) {
+    if (tipo === 'quitadas') return [];
+    if (tipo === 'receber') {
+      return [
+        { value: '', label: 'Todos' },
+        { value: 'vencido', label: 'Vencidos' },
+        { value: 'pendente', label: 'A receber' },
+      ];
+    }
+    if (tipo === 'vencidas') {
+      return [
+        { value: '', label: 'Todos' },
+        { value: 'vencido', label: 'Vencidos' },
+      ];
+    }
+
+    const order = ['pendente', 'vencido', 'advogado', 'nova gestao', 'protestado', 'descontado', 'vale', 'haver'];
+    const seen = new Set();
+    const statuses = [];
+    (base || []).forEach(f => {
+      const status = this._statusNormalizado(f.status);
+      if (!status || seen.has(status)) return;
+      seen.add(status);
+      statuses.push(status);
+    });
+
+    const ordered = [
+      ...order.filter(status => seen.has(status)),
+      ...statuses.filter(status => !order.includes(status)).sort((a, b) => this._statusLabel(a).localeCompare(this._statusLabel(b), 'pt-BR')),
+    ];
+
+    return [
+      { value: '', label: 'Todos os status' },
+      ...ordered.map(status => ({ value: status, label: this._statusLabel(status) })),
+    ];
   },
 
   _calcular() {
@@ -98,7 +158,9 @@ const Relatorios = {
 
     const statusSel = document.getElementById('rel-modal-status');
     if (statusSel) {
-      statusSel.value = tipo === 'vencidas' ? 'vencido' : '';
+      const options = this._buildStatusOptions(tipo, this._modalBase);
+      statusSel.innerHTML = options.map(opt => `<option value="${opt.value}">${opt.label}</option>`).join('');
+      statusSel.value = '';
     }
 
     const statusWrap = document.getElementById('rel-modal-status-wrap');
