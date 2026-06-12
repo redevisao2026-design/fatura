@@ -81,16 +81,25 @@ const Relatorios = {
   abrirModal(tipo) {
     const faturas   = this._getFiltradas();
     const titulos   = { todas: '📋 Todas as Faturas', vencidas: '🔴 Faturas Vencidas', receber: '🟡 Faturas a Receber', quitadas: '🟢 Faturas Quitadas' };
-    const statusMap = { todas: null, vencidas: ['vencido'], receber: ['vencido', 'pendente'], quitadas: ['pago'] };
     const cores     = { todas: '#4f46e5', vencidas: '#e74c3c', receber: '#f39c12', quitadas: '#27ae60' };
 
     this._modalTipo    = tipo;
     this._modalCorBase = cores[tipo];
-    const base         = (statusMap[tipo]
-      ? faturas.filter(f => statusMap[tipo].includes(this._statusNormalizado(f)))
-      : faturas.filter(f => !this._isQuitada(f)));
+    const base         = tipo === 'quitadas'
+      ? faturas.filter(f => this._isQuitada(f))
+      : faturas.filter(f => !this._isQuitada(f));
     this._modalBase    = base
       .sort((a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento));
+
+    const statusSel = document.getElementById('rel-modal-status');
+    if (statusSel) {
+      statusSel.value = tipo === 'vencidas' ? 'vencido' : '';
+    }
+
+    const statusWrap = document.getElementById('rel-modal-status-wrap');
+    if (statusWrap) {
+      statusWrap.style.display = tipo === 'quitadas' ? 'none' : 'flex';
+    }
 
     // Preencher select de empresa do modal
     const sel = document.getElementById('rel-modal-empresa');
@@ -103,6 +112,7 @@ const Relatorios = {
       )];
       sel.innerHTML = '<option value="">Todas</option>' +
         empresasNoModal.map(([id, nome]) => `<option value="${id}">${nome}</option>`).join('');
+      sel.value = '';
     }
 
     document.getElementById('relatorio-modal-titulo').textContent = titulos[tipo];
@@ -118,9 +128,12 @@ const Relatorios = {
 
   _renderModalLista() {
     const empresaFiltro = document.getElementById('rel-modal-empresa')?.value || '';
-    const lista = empresaFiltro
-      ? this._modalBase.filter(f => String(f.empresa_id) === String(empresaFiltro))
-      : this._modalBase;
+    const statusFiltro = document.getElementById('rel-modal-status')?.value || '';
+    const lista = this._modalBase.filter(f => {
+      if (empresaFiltro && String(f.empresa_id) !== String(empresaFiltro)) return false;
+      if (statusFiltro && this._statusNormalizado(f) !== statusFiltro) return false;
+      return true;
+    });
 
     const total = lista.reduce((s, f) => s + parseFloat(f.valor || 0), 0);
     document.getElementById('relatorio-modal-total').textContent = Utils.formatCurrency(total);

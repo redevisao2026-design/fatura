@@ -726,11 +726,21 @@
                 <span style="font-size:12px; color:var(--text-light);">Quantidade</span>
                 <p id="relatorio-modal-qtd" style="font-size:22px; font-weight:700; margin:0; color:var(--text);">0</p>
               </div>
-              <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
-                <label style="font-size:12px; color:var(--text-light); white-space:nowrap;">🏢 Empresa</label>
-                <select id="rel-modal-empresa" onchange="Relatorios.filtrarModal()" style="height:36px; font-size:13px; border:1px solid var(--border); border-radius:8px; padding:0 10px; background:white; min-width:180px;">
-                  <option value="">Todas</option>
-                </select>
+              <div style="margin-left:auto; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                <div id="rel-modal-status-wrap" style="display:flex; align-items:center; gap:8px;">
+                  <label style="font-size:12px; color:var(--text-light); white-space:nowrap;">🏷️ Status</label>
+                  <select id="rel-modal-status" onchange="Relatorios.filtrarModal()" style="height:36px; font-size:13px; border:1px solid var(--border); border-radius:8px; padding:0 10px; background:white; min-width:170px;">
+                    <option value="">Todos</option>
+                    <option value="vencido">Vencidos</option>
+                    <option value="pendente">A receber</option>
+                  </select>
+                </div>
+                <div id="rel-modal-empresa-wrap" style="display:flex; align-items:center; gap:8px;">
+                  <label style="font-size:12px; color:var(--text-light); white-space:nowrap;">🏢 Empresa</label>
+                  <select id="rel-modal-empresa" onchange="Relatorios.filtrarModal()" style="height:36px; font-size:13px; border:1px solid var(--border); border-radius:8px; padding:0 10px; background:white; min-width:180px;">
+                    <option value="">Todas</option>
+                  </select>
+                </div>
               </div>
             </div>
             <div class="table-wrapper">
