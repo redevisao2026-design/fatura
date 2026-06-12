@@ -289,6 +289,12 @@ const Faturas = {
     }
   },
 
+  isPdfFile(file) {
+    if (!file) return false;
+    const nome = (file.name || '').toLowerCase();
+    return file.type === 'application/pdf' || nome.endsWith('.pdf');
+  },
+
   setupUploadFileListener() {
     const fileInput = document.getElementById('upload-arquivo');
     const pdfFields = document.getElementById('upload-fields-pdf');
@@ -297,7 +303,7 @@ const Faturas = {
       fileInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (file) {
-          const isPDF = file.type === 'application/pdf' || file.name.endsWith('.pdf');
+          const isPDF = this.isPdfFile(file);
           const isXLSX = file.name.endsWith('.xlsx');
           const isCSV = file.name.endsWith('.csv');
           
@@ -609,7 +615,7 @@ const Faturas = {
     formData.append('empresa_id', empresaId);
 
     // Apenas adicionar campos extras se for PDF
-    if (arquivo.type === 'application/pdf') {
+    if (this.isPdfFile(arquivo)) {
       const clienteId = document.getElementById('upload-cliente').value;
       const numeroFatura = document.getElementById('upload-numero').value;
       const valor = document.getElementById('upload-valor').value;
