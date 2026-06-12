@@ -50,14 +50,23 @@ const Relatorios = {
   },
 
   _isQuitada(fatura) {
-    return String(fatura?.status || '').toLowerCase() === 'pago';
+    return this._statusNormalizado(fatura) === 'pago';
+  },
+
+  _statusNormalizado(fatura) {
+    return String(fatura?.status || '').toLowerCase();
+  },
+
+  _isEmAberto(fatura) {
+    const status = this._statusNormalizado(fatura);
+    return status === 'vencido' || status === 'pendente';
   },
 
   _calcular() {
     const faturas  = this._getFiltradas();
-    const ativas   = faturas.filter(f => !this._isQuitada(f));
-    const vencidas = ativas.filter(f => f.status === 'vencido');
-    const receber  = ativas.filter(f => f.status === 'pendente');
+    const ativas   = faturas.filter(f => this._isEmAberto(f));
+    const vencidas = ativas.filter(f => this._statusNormalizado(f) === 'vencido');
+    const receber  = ativas.filter(f => this._statusNormalizado(f) === 'pendente');
     const quitadas = faturas.filter(f => this._isQuitada(f));
     const soma     = arr => arr.reduce((s, f) => s + parseFloat(f.valor || 0), 0);
 
@@ -79,8 +88,10 @@ const Relatorios = {
 
     this._modalTipo    = tipo;
     this._modalCorBase = cores[tipo];
-    const base         = (statusMap[tipo] ? faturas.filter(f => f.status === statusMap[tipo]) : faturas);
-    this._modalBase    = (tipo === 'todas' ? base.filter(f => !this._isQuitada(f)) : base)
+    const base         = (statusMap[tipo]
+      ? faturas.filter(f => this._statusNormalizado(f) === statusMap[tipo])
+      : faturas.filter(f => this._isEmAberto(f)));
+    this._modalBase    = base
       .sort((a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento));
 
     // Preencher select de empresa do modal
