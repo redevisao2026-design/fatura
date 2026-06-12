@@ -57,14 +57,9 @@ const Relatorios = {
     return String(fatura?.status || '').toLowerCase();
   },
 
-  _isEmAberto(fatura) {
-    const status = this._statusNormalizado(fatura);
-    return status === 'vencido' || status === 'pendente';
-  },
-
   _calcular() {
     const faturas  = this._getFiltradas();
-    const ativas   = faturas.filter(f => this._isEmAberto(f));
+    const ativas   = faturas.filter(f => !this._isQuitada(f));
     const vencidas = ativas.filter(f => this._statusNormalizado(f) === 'vencido');
     const receber  = ativas.filter(f => this._statusNormalizado(f) === 'pendente');
     const quitadas = faturas.filter(f => this._isQuitada(f));
@@ -90,7 +85,7 @@ const Relatorios = {
     this._modalCorBase = cores[tipo];
     const base         = (statusMap[tipo]
       ? faturas.filter(f => this._statusNormalizado(f) === statusMap[tipo])
-      : faturas.filter(f => this._isEmAberto(f)));
+      : faturas.filter(f => !this._isQuitada(f)));
     this._modalBase    = base
       .sort((a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento));
 
