@@ -87,6 +87,15 @@ const Relatorios = {
 
   _buildStatusOptions(tipo, base) {
     if (tipo === 'quitadas') return [];
+    if (tipo === 'todas') {
+      return [
+        { value: '', label: 'Todos' },
+        { value: 'pendente', label: 'Pendente' },
+        { value: 'pago', label: 'Pago' },
+        { value: 'vencido', label: 'Vencido' },
+        { value: 'nova gestao', label: 'Nova Gestão' },
+      ];
+    }
     if (tipo === 'receber') {
       return [
         { value: '', label: 'Todos' },
@@ -152,7 +161,9 @@ const Relatorios = {
     this._modalCorBase = cores[tipo];
     const base         = tipo === 'quitadas'
       ? faturas.filter(f => this._isQuitada(f))
-      : faturas.filter(f => !this._isQuitada(f));
+      : tipo === 'todas'
+        ? faturas
+        : faturas.filter(f => !this._isQuitada(f));
     this._modalBase    = base
       .sort((a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento));
 
