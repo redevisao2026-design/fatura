@@ -275,6 +275,19 @@ nav {
   background: #f3f4f6;
 }
 
+.btn-info {
+  background: linear-gradient(180deg, #06b6d4 0%, #0891b2 100%);
+  color: white;
+}
+
+.btn-info:hover {
+  background: linear-gradient(180deg, #0ea5c9 0%, #0f7490 100%);
+}
+
+.btn-anexos {
+  border: 1px solid rgba(8, 145, 178, 0.28);
+}
+
 .btn-link {
   background: none;
   border: none;

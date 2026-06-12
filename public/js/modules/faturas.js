@@ -77,6 +77,21 @@ const Faturas = {
     select.value = option ? option.value : fallback;
   },
 
+  getCurrentUserAdmin() {
+    const isAdminFlag = localStorage.getItem('is_admin');
+    if (isAdminFlag === '1' || isAdminFlag === 'true') {
+      return true;
+    }
+
+    try {
+      const usuario = JSON.parse(localStorage.getItem('usuario') || '{}');
+      const admin = usuario?.is_admin;
+      return admin === 1 || admin === '1' || admin === true || admin === 'true';
+    } catch {
+      return false;
+    }
+  },
+
   /**
    * Identifica faturas de haver que não devem aparecer na lista principal.
    * Haver = saldo a favor do cliente (empresa deve ao cliente), então fica fora da lista principal.
@@ -104,6 +119,7 @@ const Faturas = {
 
       this.clientes = await api.getClientes();
       this.empresas = await this.loadEmpresas();
+      this.isAdmin = this.getCurrentUserAdmin();
       this.loadEmpresasSelect();
       this.setupFaturaClienteBusca();
     } catch (error) {
@@ -125,7 +141,7 @@ const Faturas = {
       this.faturasListagem = this.faturas.filter(f => !this.isHaver(f));
       this.clientes = clientes || [];
       this.empresas = empresas || [];
-      this.isAdmin = localStorage.getItem('is_admin') === '1';
+      this.isAdmin = this.getCurrentUserAdmin();
       console.log('[Faturas] Faturas carregadas (total):', this.faturas.length);
       console.log('[Faturas] Faturas para listagem (sem haver):', this.faturasListagem.length);
       console.log('[Faturas] Clientes carregados:', this.clientes);
@@ -193,7 +209,7 @@ const Faturas = {
       this.faturasHaver = havers || [];
       this.clientes = clientes || [];
       this.empresas = empresas || [];
-      this.isAdmin = localStorage.getItem('is_admin') === '1';
+      this.isAdmin = this.getCurrentUserAdmin();
       this.faturasFiltradas = [...this.faturasHaver];
       this.setupHaverSearch();
       console.log('[Faturas] Haver encontrados:', this.faturasFiltradas.length);
@@ -380,6 +396,7 @@ const Faturas = {
       const hasNota = !!f.nota_path;
       const boletoClass = hasBoleto ? 'btn-success' : 'btn-secondary';
       const notaClass = hasNota ? 'btn-success' : 'btn-secondary';
+      const canManageAnexos = this.getCurrentUserAdmin();
       
       return `
         <tr>
@@ -391,7 +408,7 @@ const Faturas = {
           <td class="table-actions" style="gap:6px;">
             <button class="btn btn-sm ${boletoClass}" onclick="Faturas.handleBoletoClick(${f.id})" title="${hasBoleto ? 'Baixar boleto' : (isAdmin ? 'Enviar boleto' : 'Sem boleto')}" ${hasBoleto || isAdmin ? '' : 'disabled'}>🧾</button>
             <button class="btn btn-sm ${notaClass}" onclick="Faturas.handleNotaClick(${f.id})" title="${hasNota ? 'Baixar nota fiscal' : (isAdmin ? 'Enviar nota fiscal' : 'Sem nota fiscal')}" ${hasNota || isAdmin ? '' : 'disabled'}>📄</button>
-            ${isAdmin ? `<button class="btn btn-sm btn-info" onclick="Faturas.openAnexos(${f.id})" title="Anexar boleto/nota">📎</button>` : ''}
+            ${canManageAnexos ? `<button class="btn btn-sm btn-info btn-anexos" onclick="Faturas.openAnexos(${f.id})" title="Anexar PDFs (admin)">📎</button>` : ''}
             <button class="btn btn-sm btn-primary" onclick="Faturas.edit(${f.id})" title="Editar fatura">✏️</button>
             <button class="btn btn-sm btn-success" onclick="Faturas.toggleStatus(${f.id}, '${f.status}')" title="Alterar status">
               ${f.status === 'pago' || f.status === 'haver' ? '↩️' : '✓'}
@@ -949,6 +966,11 @@ const Faturas = {
   },
 
   openAnexos(id) {
+    if (!this.getCurrentUserAdmin()) {
+      Utils.showNotification('Apenas administradores podem anexar PDFs.', 'error');
+      return;
+    }
+
     const fatura = this.faturas.find(f => f.id === id);
     if (!fatura) {
       Utils.showNotification('Fatura não encontrada', 'error');
