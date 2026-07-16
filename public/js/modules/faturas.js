@@ -713,6 +713,7 @@ const Faturas = {
 
       // Preencher formulário
       document.getElementById('edit-fatura-id').value = fatura.id;
+      document.getElementById('edit-empresa-id').value = fatura.empresa_id || '';
       document.getElementById('edit-numero-fatura').value = fatura.numero_fatura;
       document.getElementById('edit-valor').value = fatura.valor;
       document.getElementById('edit-data-vencimento').value = fatura.data_vencimento;
@@ -741,8 +742,10 @@ const Faturas = {
     event.preventDefault();
 
     const id = document.getElementById('edit-fatura-id').value;
+    const empresaId = document.getElementById('edit-empresa-id').value;
     const data = {
       cliente_id: document.getElementById('edit-cliente-id').value,
+      empresa_id: empresaId || null,
       numero_fatura: document.getElementById('edit-numero-fatura').value,
       valor: parseFloat(document.getElementById('edit-valor').value),
       data_vencimento: document.getElementById('edit-data-vencimento').value,
